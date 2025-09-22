@@ -3,7 +3,11 @@ import pytest
 import xarray as xr
 from pystac.extensions.mlm import ProcessingExpression
 
+from openeo_processes_dask_ml.process_implementations import constants
 from openeo_processes_dask_ml.process_implementations.utils import proc_expression_utils
+
+constants.ALLOW_MLM_PROCESSING_FUNCTION = True
+constants.ALLOWED_MLM_PROCESSING_PACKAGES.append("tests")
 
 
 @pytest.fixture
