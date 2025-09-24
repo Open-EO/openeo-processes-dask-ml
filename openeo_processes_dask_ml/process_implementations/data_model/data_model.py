@@ -664,10 +664,15 @@ class MLModel(ABC):
         for b_idx in range(0, b_len, n_batches + 1):
             s_dc = datacube[b_idx : b_idx + n_batches + 1]
 
-            # make prediction in framework-specific derived classes
-            model_out = self.execute_model(s_dc)
-
-            returned_dcs.append(model_out)
+            if np.isnan(s_dc).all():
+                in_batch_size = s_dc.shape[batch_index]
+                out_shp = self.output.result.shape
+                out_shp[batch_index] = in_batch_size
+                returned_dcs.append(np.full(out_shp, float("nan")))
+            else:
+                # make prediction in framework-specific derived classes
+                model_out = self.execute_model(s_dc)
+                returned_dcs.append(model_out)
 
         batch_stack = np.vstack(returned_dcs)
         return_array = np.expand_dims(
