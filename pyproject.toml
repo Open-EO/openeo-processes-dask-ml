@@ -23,6 +23,7 @@ black = "^25.1.0"
 pre-commit = "^4.2.0"
 notebook = "^7.4.4"
 graphviz = "^0.21"
+dask-labextension = "^7.0.0"
 
 
 
