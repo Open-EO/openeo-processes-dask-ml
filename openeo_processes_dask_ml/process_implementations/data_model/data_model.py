@@ -9,6 +9,8 @@ import pystac
 import xarray as xr
 import xarray.core.coordinates
 from dask import array as da
+from dask.distributed import Lock as DaskLock
+from dask.distributed import get_client, get_worker
 from openeo_processes_dask.process_implementations.exceptions import (
     DimensionMismatch,
     DimensionMissing,
@@ -27,6 +29,7 @@ from openeo_processes_dask_ml.process_implementations.exceptions import (
     ReferenceSystemNotFound,
 )
 from openeo_processes_dask_ml.process_implementations.utils import (
+    dask_coordination,
     dim_utils,
     download_utils,
     epsg_utils,
@@ -55,7 +58,7 @@ class MLModel(ABC):
         self._model_asset = self._get_model_asset(model_asset_name)
         self._input_index = input_index
         self._output_index = output_index
-        self._model_object = None
+        self._model_filepath = None
 
     @property
     def model_metadata(self) -> MLMExtension:
@@ -630,7 +633,7 @@ class MLModel(ABC):
         return chunk_shape
 
     def feed_datacube_to_model(
-        self, datacube: np.ndarray, _, n_batches: int, n_target_dims: int
+        self, datacube: np.ndarray, _, n_batches: int, n_target_dims: int, lock=None
     ) -> np.ndarray:
         """
         Pass values to the ML model to do prediction.
@@ -638,47 +641,78 @@ class MLModel(ABC):
         :param _: placeholder for pre-compute hook
         :param n_batches: numbers of sample per batch to use
         :param n_target_dims: Number of dimensions in return array
+        :param lock: Lock object to be used during execution, can be None
         :return:
         """
-        try:
-            # get dimension index of "batch" dimension
-            batch_index = self.input.input.dim_order.index("batch")
-        except ValueError:
-            # in case input has no batch dim: use 0
-            batch_index = 0
 
-        # at this point we can say the following about the datacube
-        # datacube dims: [*dims_in_model (with batch dim), *dims_not_in_model]
-        # datacube shape:
-        #   - length of dimensions in model are as they need to be to satisfy model
-        #   - length of dimensions not in model are 1
+        def _real_function(inner_datacube, inner_model_object):
+            inner_model_object = self.model_to_device(inner_model_object)
 
-        num_input_dims = len(self.input.input.shape)
-        num_datacube_dims = len(datacube.shape)
-        axes_to_squeeze = tuple(range(num_input_dims, num_datacube_dims))
-        datacube = datacube.squeeze(axis=axes_to_squeeze)
+            try:
+                # get dimension index of "batch" dimension
+                batch_index = self.input.input.dim_order.index("batch")
+            except ValueError:
+                # in case input has no batch dim: use 0
+                batch_index = 0
 
-        b_len = datacube.shape[batch_index]
+            # at this point we can say the following about the datacube
+            # datacube dims: [*dims_in_model (with batch dim), *dims_not_in_model]
+            # datacube shape:
+            #   - length of dimensions in model are as they need to be to satisfy model
+            #   - length of dimensions not in model are 1
 
-        returned_dcs = []
-        for b_idx in range(0, b_len, n_batches + 1):
-            s_dc = datacube[b_idx : b_idx + n_batches + 1]
+            num_input_dims = len(self.input.input.shape)
+            num_datacube_dims = len(inner_datacube.shape)
+            axes_to_squeeze = tuple(range(num_input_dims, num_datacube_dims))
+            inner_datacube = inner_datacube.squeeze(axis=axes_to_squeeze)
 
-            if np.isnan(s_dc).all():
-                in_batch_size = s_dc.shape[batch_index]
-                out_shp = self.output.result.shape
-                out_shp[batch_index] = in_batch_size
-                returned_dcs.append(np.full(out_shp, float("nan")))
-            else:
-                # make prediction in framework-specific derived classes
-                model_out = self.execute_model(s_dc)
-                returned_dcs.append(model_out)
+            b_len = inner_datacube.shape[batch_index]
 
-        batch_stack = np.vstack(returned_dcs)
-        return_array = np.expand_dims(
-            batch_stack, tuple(range(len(batch_stack.shape), n_target_dims))
-        )
-        return return_array
+            returned_dcs = []
+            for b_idx in range(0, b_len, n_batches + 1):
+                s_dc = inner_datacube[b_idx : b_idx + n_batches + 1]
+
+                if np.isnan(s_dc).all():
+                    in_batch_size = s_dc.shape[batch_index]
+                    out_shp = self.output.result.shape
+                    out_shp[batch_index] = in_batch_size
+                    returned_dcs.append(np.full(out_shp, float("nan")))
+                else:
+                    # make prediction in framework-specific derived classes
+                    model_out = self.execute_model(inner_model_object, s_dc)
+                    returned_dcs.append(model_out)
+
+            batch_stack = np.vstack(returned_dcs)
+            return_array = np.expand_dims(
+                batch_stack, tuple(range(len(batch_stack.shape), n_target_dims))
+            )
+
+            self.model_from_device(inner_model_object)
+
+            return return_array
+
+        # --------------------------------------
+
+        # create a model object on the worker
+        worker = get_worker()
+        if not hasattr(worker, self._model_filepath):
+            setattr(
+                worker,
+                self._model_filepath,
+                self.create_model_object(self._model_filepath),
+            )
+
+        model_object = getattr(worker, self._model_filepath)
+
+        # use the lock in single-GPU environments: Many workers - one GPU
+        # do not use lock in Multi-GPU: One GPU per Worker
+        if lock:
+            with lock:
+                result = _real_function(datacube, model_object)
+        else:
+            result = _real_function(datacube, model_object)
+
+        return result
 
     def resolve_batch(
         self,
@@ -899,11 +933,13 @@ class MLModel(ABC):
         dc_slice.coords[inp_dim_name] = [coord]
 
     def run_model(self, datacube: xr.DataArray) -> xr.DataArray:
+        dask_coordination.require_dask_client()
+
         # first check if all dims required by model are in data cube
         self.check_datacube_dimensions(datacube, ignore_batch_dim=True)
 
-        if self._model_object is None:
-            self.create_object()
+        if self._model_filepath is None:
+            self._model_filepath = self._get_model()
 
         input_dim_mapping = self.get_datacube_dimension_mapping(datacube)
 
@@ -945,19 +981,24 @@ class MLModel(ABC):
         data: da.Array = new_chunked.data
 
         # add pre-computehook to dask graph
-        init_model = dask.delayed(self.pre_map_block_compute_hook)()
+        # init_model = dask.delayed(self.pre_map_block_compute_hook)()
+
+        lock = DaskLock("gpu-lock")
 
         # Map the function to predict to each datacube block (chunk)
         block_mapped = data.map_blocks(
             self.feed_datacube_to_model,
-            init_model,
+            # init_model,
+            True,  # dummy value for _
             dtype=out_dtype_np,
             drop_axis=dims_removed,
             new_axis=dims_added,
             chunks=chunk_out_shape,
+            enforce_ndim=True,
             # kwargs passed to callback function
             n_batches=n_batches,  # number of samples to use per batch
             n_target_dims=len(chunk_out_shape),
+            lock=lock,
         )
 
         # add post-compute hook
@@ -1124,43 +1165,27 @@ class MLModel(ABC):
         return post_cube_reorderd
 
     def create_object(self):
-        if self._model_object is not None:
-            # model object has already been created
-            return
+        return self.create_model_object(self._model_filepath)
 
-        model_filepath = self._get_model()
-        self.create_model_object(model_filepath)
+    @abstractmethod
+    def model_from_device(self, model_object):
+        pass
+
+    @abstractmethod
+    def model_to_device(self, model_object):
+        pass
 
     @abstractmethod
     def create_model_object(self, filepath: str):
         """
-        Create a model object (self._model_object) in the respective framework.
+        Create a model object in the respective framework.
         :param filepath: Path to the model object
         :return: None
         """
         pass
 
     @abstractmethod
-    def init_model_for_prediction(self):
-        """
-        Initiate the model object, e.g. move it to the cuda device. This function will
-        be executed before prediction from datacube values.
-        :return: None
-        """
-        pass
-
-    @abstractmethod
-    def uninit_model_after_prediction(self):
-        """
-        Uninitialize the model after model prediction, e.g. take it off the cuda device.
-        This function will be executed after all prediction on the datacube are
-        completed
-        :return: None
-        """
-        pass
-
-    @abstractmethod
-    def execute_model(self, batch: np.ndarray) -> xr.DataArray:
+    def execute_model(self, model, batch: np.ndarray) -> xr.DataArray:
         """
         Make a prediction with the model object
         :param batch: The object which will be passed to the model to make a

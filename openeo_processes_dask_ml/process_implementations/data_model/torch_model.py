@@ -7,6 +7,7 @@ from openeo_processes_dask_ml.process_implementations.constants import USE_GPU
 from .data_model import MLModel
 
 DEVICE = "cuda" if torch.cuda.is_available() and USE_GPU else "cpu"
+# DEVICE = "cpu"
 
 
 class TorchModel(MLModel):
@@ -24,27 +25,26 @@ class TorchModel(MLModel):
     def create_model_object(self, filepath: str):
         at = self.model_asset_metadata.artifact_type
         if at == "torch.jit.save" or at.lower() == "torchscript":
-            self._model_object = torch.jit.load(filepath)
+            model_object = torch.jit.load(self._model_filepath)
         elif at == "torch.export.save":
-            self._model_object = torch.export.load(filepath)
+            model_object = torch.export.load(self._model_filepath)
         else:
             raise NotImplemented(
                 f"Importing Torch models with artifact type {at} is not supported.\n"
                 f"Use a model with artifact type torch.jit.save or torch.export.save "
                 f"instead"
             )
+        return model_object
 
-    def init_model_for_prediction(self):
-        self._model_on_device = self._model_object.to(DEVICE)
-        self._model_on_device.eval()
+    def model_to_device(self, model_object):
+        return model_object.to(DEVICE).eval()
 
-    def uninit_model_after_prediction(self):
-        self._model_on_device = self._model_on_device.to("cpu")
-        del self._model_on_device
-        self._model_on_device = None
+    def model_from_device(self, model_object):
+        model_object = model_object.cpu()
+        del model_object
         torch.cuda.empty_cache()
 
-    def execute_model(self, batch: np.ndarray) -> np.ndarray:
+    def execute_model(self, model, batch: np.ndarray) -> np.ndarray:
         try:
             preproc_batch = self.preprocess_datacube_expression(batch)
             tensor = torch.from_numpy(preproc_batch)
@@ -54,7 +54,7 @@ class TorchModel(MLModel):
         tensor = tensor.to(DEVICE)
 
         with torch.no_grad():
-            out = self._model_on_device(tensor)
+            out = model(tensor)
 
         out_postproc = self.postprocess_datacube_expression(out)
         if out_postproc.device.type != "cpu":
