@@ -61,4 +61,10 @@ class TorchModel(MLModel):
             out_postproc = out_postproc.cpu()
         out_cube = out_postproc.numpy()
 
+        tensor = tensor.cpu()
+        del tensor
+        for o in out:
+            o = o.cpu()
+            del o
+
         return out_cube
