@@ -604,7 +604,7 @@ class MLModel(ABC):
         batch_dim_len = len(in_datacube.coords["batch"])
         if "batch" in model_out_dims:
             batch_idx = model_out_dims.index("batch")
-            model_out_shape[batch_idx] = batch_dim_len
+            model_out_shape[batch_idx] = self.get_batch_size()
         else:
             model_out_shape.insert(0, batch_dim_len)
 
@@ -629,7 +629,10 @@ class MLModel(ABC):
             if dim_name in dims_not_in_model:
                 chunk_shape[dim_name] = 1
             else:
-                chunk_shape[dim_name] = len(in_datacube.coords[dim_name])
+                if dim_name == "batch":
+                    chunk_shape[dim_name] = self.get_batch_size()
+                else:
+                    chunk_shape[dim_name] = len(in_datacube.coords[dim_name])
         return chunk_shape
 
     def feed_datacube_to_model(
@@ -739,11 +742,11 @@ class MLModel(ABC):
             raise Exception("Datacube does not have a batch dimension")
 
         # assert each batch dimension has appropriate coordinate indices
-        if len(dc_batched.coords["batch"]) != len(batch_indices):
-            raise Exception(
-                f"Different number of batches in datacube that given in batch_indices:\n"
-                f"{len(dc_batched.coords['batch'])=}, {len(batch_indices)=}"
-            )
+        # if len(dc_batched.coords["batch"]) != len(batch_indices):
+        #     raise Exception(
+        #         f"Different number of batches in datacube that given in batch_indices:\n"
+        #         f"{len(dc_batched.coords['batch'])=}, {len(batch_indices)=}"
+        #     )
 
         # set name to None to ensure that combine_by_coords will return a DataArray
         dc_batched.name = None
@@ -978,6 +981,7 @@ class MLModel(ABC):
         #  Makes things easier. We will go back to xarray later.                     #
         ##############################################################################
 
+        print(new_chunked)
         data: da.Array = new_chunked.data
 
         # add pre-computehook to dask graph
@@ -986,7 +990,7 @@ class MLModel(ABC):
         lock = DaskLock("gpu-lock")
 
         # Map the function to predict to each datacube block (chunk)
-        block_mapped = data.map_blocks(
+        model_out = data.map_blocks(
             self.feed_datacube_to_model,
             # init_model,
             True,  # dummy value for _
@@ -999,14 +1003,6 @@ class MLModel(ABC):
             n_batches=n_batches,  # number of samples to use per batch
             n_target_dims=len(chunk_out_shape),
             lock=lock,
-        )
-
-        # add post-compute hook
-        uninit_model = dask.delayed(self.post_map_block_compute_hook)(block_mapped)
-
-        # make dask array from post-compute hook
-        model_out = da.from_delayed(
-            uninit_model, shape=block_mapped.shape, dtype=block_mapped.dtype
         )
 
         ##################################
@@ -1029,13 +1025,6 @@ class MLModel(ABC):
 
         post_cube = self.postprocess_datacube(datacube, resolved_datacube)
         return post_cube
-
-    def pre_map_block_compute_hook(self):
-        self.init_model_for_prediction()
-
-    def post_map_block_compute_hook(self, result):
-        self.uninit_model_after_prediction()
-        return result
 
     def reorder_out_dc_dims(
         self, in_cube: xr.DataArray, out_cube: xr.DataArray
