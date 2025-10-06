@@ -24,6 +24,12 @@ DATACUBE_CACHE_DIR = os.environ.get(
 
 USE_GPU = _get_boolean_env("OPD_ML_USE_GPU", True)
 
+# Whether multiple workers can use the GPU at the same time.
+# in a local environment: All workers can push to the same GPU
+# in a distributed environment with a ressource scheduler: Each worker gets its own GPU
+USE_GPU_PARALLEL = _get_boolean_env("USE_GPU_PARALLEL", False)
+
+
 # STAC:MLM has fields to apply a custom pre- and post-processing functions.
 # - Allowing them is dangerous as it can be exploited as a remote code execution.
 # - Disallowing them limits OPD-ML's versatility, as ML model outputs cannot be

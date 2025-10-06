@@ -22,7 +22,10 @@ from pystac.extensions.mlm import (
     _AssetMLMExtension,
 )
 
-from openeo_processes_dask_ml.process_implementations.constants import MODEL_CACHE_DIR
+from openeo_processes_dask_ml.process_implementations.constants import (
+    MODEL_CACHE_DIR,
+    USE_GPU_PARALLEL,
+)
 from openeo_processes_dask_ml.process_implementations.exceptions import (
     ExpressionEvaluationException,
     LabelDoesNotExist,
@@ -987,7 +990,10 @@ class MLModel(ABC):
         # add pre-computehook to dask graph
         # init_model = dask.delayed(self.pre_map_block_compute_hook)()
 
-        lock = DaskLock("gpu-lock")
+        if USE_GPU_PARALLEL:
+            lock = None
+        else:
+            lock = DaskLock("gpu-lock")
 
         # Map the function to predict to each datacube block (chunk)
         model_out = data.map_blocks(
