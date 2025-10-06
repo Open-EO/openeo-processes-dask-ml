@@ -984,7 +984,6 @@ class MLModel(ABC):
         #  Makes things easier. We will go back to xarray later.                     #
         ##############################################################################
 
-        print(new_chunked)
         data: da.Array = new_chunked.data
 
         # add pre-computehook to dask graph
