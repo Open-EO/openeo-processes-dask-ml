@@ -5,6 +5,16 @@
 [openeo-processes-dask](https://github.com/Open-EO/openeo-processes-dask), extending it
 by machine learning capabilities.
 
+> [!WARNING]  
+> This package is Work-In-Progress, and everything is experimental.
+> You will likely encounter many `NotImplementedError`.\
+> At the moment, it is rather a proof-of-concept than something to be used in production.
+
+## Currently supported
+- Loading pre-trained ML models using the `load_ml_model` process
+- Use the loaded ML model to make predictions from the datacube using `ml_predict`
+- Restructure ML model output back into a datacube structure.
+
 ## Installation
 
 This package is not published on PyPI yet. It can only be used from source
@@ -15,6 +25,13 @@ This package is not published on PyPI yet. It can only be used from source
 2. Install it using [poetry](https://python-poetry.org/docs/):
    `poetry install --all-extras`
 3. Run the test suite: `poetry run pytest`
+
+### Extensibility
+
+This package is made to be easily extensible (e.g. adding support for new
+ML frameworks) by inheriting from 
+`openeo_processes_dask_ml.process_implementations.data_model.data_model.MLModel` and implementing 
+the abstract methods.
 
 ### Pre-commit hooks
 
