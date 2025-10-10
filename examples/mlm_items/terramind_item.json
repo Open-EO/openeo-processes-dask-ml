@@ -102,7 +102,7 @@
         ],
         "mlm:output": [
             {
-                "name": "embeddings",
+                "name": "patch-embeddings-regridded",
                 "tasks": [
                     "classification"
                 ],
@@ -127,7 +127,7 @@
                 }
             },
             {
-                "name": "embeddings",
+                "name": "multilevel-embeddings",
                 "tasks": [
                     "classification"
                 ],
@@ -151,6 +151,54 @@
                 "post_processing_function": {
                     "format": "python",
                     "expression": "ml_datacube_bridge.output_preprocessing_functions.torch_vit_encoder_tools:get_patch_embedding_without_cls_square_multilevel"
+                }
+            },
+            {
+                "name": "patch-embeddings-linear",
+                "tasks": [
+                    "classification"
+                ],
+                "result": {
+                    "shape": [
+                        -1,
+                        196,
+                        1024
+                    ],
+                    "dim_order": [
+                        "batch",
+                        "patch",
+                        "embedding"
+                    ],
+                    "data_type": "float32"
+                },
+                "post_processing_function": {
+                    "format": "python",
+                    "expression": "builtins:list.pop"
+                }
+            },
+            {
+                "name": "patch-embeddings-linear-multilevel",
+                "tasks": [
+                    "classification"
+                ],
+                "result": {
+                    "shape": [
+                        -1,
+                        24,
+                        196,
+                        1024
+                    ],
+                    "dim_order": [
+                        "batch",
+                        "embedding_level",
+                        "patch",
+                        "embedding"
+                    ],
+                    "data_type": "float32"
+                },
+                "post_processing_function": {
+                    "format": "python",
+                    "expression": "ml_datacube_bridge.output_preprocessing_functions.torch_vit_encoder_tools:lienar_patch_multilevel"
                 }
             }
         ]

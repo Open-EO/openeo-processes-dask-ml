@@ -94,3 +94,7 @@ def get_image_cls_embedding_appended_torch(t: list[torch.Tensor]) -> torch.Tenso
     embedding_tensor = t.pop()
     embeddings = embedding_tensor[:, -1, :]
     return embeddings
+
+
+def lienar_patch_multilevel(t: list[torch.Tensor]) -> torch.Tensor:
+    return torch.stack(t, dim=1)
