@@ -18,6 +18,12 @@ class DummyMLModel(MLModel):
     def create_model_object(self, filepath: str):
         pass
 
+    def model_to_device(self, model_object):
+        pass
+
+    def model_from_device(self, model_object):
+        pass
+
     def execute_model(self, batch: xr.DataArray) -> xr.DataArray:
         out_shape = self.output.result.shape
         out_dims = self.output.result.dim_order

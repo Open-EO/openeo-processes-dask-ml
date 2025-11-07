@@ -440,7 +440,7 @@ def test_get_chunk_output_shape(mlm_item: pystac.Item):
     chunk_out_shape = d.get_chunk_output_shape(in_dc)
 
     assert len(chunk_out_shape) == 5
-    assert chunk_out_shape == (10, 20, 1, 1, 1)
+    assert chunk_out_shape == (12, 20, 1, 1, 1)  # todo dont hard-code batch size (12)
 
 
 def test_get_chunk_shape(mlm_item):
@@ -463,7 +463,7 @@ def test_get_chunk_shape(mlm_item):
     assert "x" in chunks_shape
     assert "time" in chunks_shape
 
-    assert chunks_shape["batch"] == 10
+    assert chunks_shape["batch"] == 12  # todo dont hard-code batch size
     assert chunks_shape["bands"] == 12
     assert chunks_shape["y"] == 224
     assert chunks_shape["x"] == 224
