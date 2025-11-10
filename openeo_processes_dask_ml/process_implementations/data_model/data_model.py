@@ -898,6 +898,8 @@ class MLModel(ABC):
         #   Challenge: timing of xarray SLURM job and ML job
         #   (one job times out, the other one is not finnished or started yet)
         #
+        # - call an external script to handle predictions (scale, parallel, multi-gpu)
+        #
         # - Make ML inside a docker container to handle different frameworks, versions
         #
         # - Currently, all predictions are happening on one dask worker, even if
