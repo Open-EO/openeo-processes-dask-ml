@@ -893,10 +893,20 @@ class MLModel(ABC):
         # This function performs the prediction using the model on the saved .npy files
         # This is a very simple implementation, but can be improved
         # Ideas for the future, e.g.
+        #
         # - Offload prediction to new process (e.g. new SLURM job with GPU ressource)
         #   Challenge: timing of xarray SLURM job and ML job
         #   (one job times out, the other one is not finnished or started yet)
+        #
         # - Make ML inside a docker container to handle different frameworks, versions
+        #
+        # - Currently, all predictions are happening on one dask worker, even if
+        #   multiple are available -> bad use of ressources
+        #   Improve: Use all dask workers and make predictions simultaneously.
+        #   Find a mechanism so that it is predetermined which worker will work on which
+        #   saved block of data
+        #   Challenge: make this work both in local computations, with threads/processes
+        #   and on LocalCluster, and on SLURMCluster
 
         model_object = self.create_model_object(self._model_filepath)
         model_object = self.model_to_device(model_object)
