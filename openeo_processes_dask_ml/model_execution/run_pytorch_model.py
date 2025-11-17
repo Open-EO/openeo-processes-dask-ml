@@ -1,3 +1,4 @@
+import logging
 from collections.abc import Iterable
 from multiprocessing import Process
 from pathlib import Path
@@ -9,6 +10,8 @@ from openeo_processes_dask_ml.model_execution._argparser import get_parser
 from openeo_processes_dask_ml.process_implementations.utils.proc_expression_utils import (
     run_expression,
 )
+
+logger = logging.getLogger(__name__)
 
 
 def get_file_chunk(tmp_dir_input: Path, start_chunk: int, num_chunks: int):
@@ -95,7 +98,9 @@ def start_prediction_processes(
                 f"Not enough cuda devices: Requested {devices_available} "
                 f"but {n_cuda_devices} were requested."
             )
-    print("CUDA Devices:", n_cuda_devices)
+    logger.error(
+        f"CUDA Devices: {n_cuda_devices}",
+    )
     processes = []
     for cuda_id in range(n_cuda_devices):
         file_chunk = get_file_chunk(tmp_dir_input, cuda_id, n_cuda_devices)
