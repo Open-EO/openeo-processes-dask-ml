@@ -47,3 +47,14 @@ def test_python(expression: str, datacube: xr.DataArray):
 
     assert isinstance(new_cube, xr.DataArray)
     assert np.all(new_cube.data == ground_trouth)
+
+
+def test_postprocess_datacube_expression():
+    p = ProcessingExpression.create(
+        "python", "tests.utils.test_proc_expression_utils:function_for_testing"
+    )
+
+    dc = xr.DataArray(np.array((2, 4, 6)), dims=["x"])
+
+    res = proc_expression_utils.run_expression(dc, p)
+    assert np.all(res.data == np.array((4, 8, 12)))

@@ -1,3 +1,6 @@
+from collections.abc import Iterable
+from pathlib import Path
+
 import numpy as np
 import xarray as xr
 
@@ -8,21 +11,6 @@ class DummyMLModel(MLModel):
     """
     This is a dummy model class that is used only for testing purposes
     """
-
-    def init_model_for_prediction(self):
-        pass
-
-    def uninit_model_after_prediction(self):
-        pass
-
-    def create_model_object(self, filepath: str):
-        pass
-
-    def model_to_device(self, model_object):
-        pass
-
-    def model_from_device(self, model_object):
-        pass
 
     def execute_model(self, batch: xr.DataArray) -> xr.DataArray:
         out_shape = self.output.result.shape
@@ -45,3 +33,19 @@ class DummyMLModel(MLModel):
             np.random.random(out_dc_shape).astype(out_dtype), dims=out_dims
         )
         return r
+
+    def make_predictions(
+        self,
+        model_filepath: str,
+        files: Iterable[Path],
+        tmp_dir_output: Path,
+        preproc_expression,
+        postproc_expression,
+    ):
+        pass
+
+    def start_subprocess_for_prediction(self):
+        pass
+
+    def submit_slurm_job_for_prediction(self):
+        pass

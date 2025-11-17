@@ -470,34 +470,6 @@ def test_get_chunk_shape(mlm_item):
     assert chunks_shape["time"] == 1
 
 
-def test_preprocessing_datacube_expression(mlm_item: pystac.Item):
-    p = mlm.ProcessingExpression.create(
-        "python", "tests.utils.test_proc_expression_utils:function_for_testing"
-    )
-
-    mlm_item.ext.mlm.input[0].pre_processing_function = p
-    d = DummyMLModel(mlm_item)
-
-    dc = xr.DataArray(np.array((2, 4, 6)), dims=["x"])
-
-    res = d.preprocess_datacube_expression(dc)
-    assert np.all(res.data == np.array((4, 8, 12)))
-
-
-def test_postprocess_datacube_expression(mlm_item: pystac.Item):
-    p = mlm.ProcessingExpression.create(
-        "python", "tests.utils.test_proc_expression_utils:function_for_testing"
-    )
-
-    mlm_item.ext.mlm.output[0].post_processing_function = p
-    d = DummyMLModel(mlm_item)
-
-    dc = xr.DataArray(np.array((2, 4, 6)), dims=["x"])
-
-    res = d.postprocess_datacube_expression(dc)
-    assert np.all(res.data == np.array((4, 8, 12)))
-
-
 def test_feed_datacube_to_model():
     pass
 
