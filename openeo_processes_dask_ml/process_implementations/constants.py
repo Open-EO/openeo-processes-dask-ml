@@ -26,6 +26,14 @@ TMP_DIR = os.environ.get("OPD_TMP_DIR", "./tmp")
 
 USE_GPU = _get_boolean_env("OPD_ML_USE_GPU", True)
 
+MODEL_EXECUTION_MODE = os.environ.get("OPD_MODEL_EXECUTION_MODE", "dask")
+_execution_modes = ["dask", "subprocess", "slurm"]
+if MODEL_EXECUTION_MODE not in _execution_modes:
+    raise ValueError(
+        f"Invalid ENV OPD_MODEL_EXECUTION_MODE, must be one of "
+        f"{', '.join(_execution_modes)}"
+    )
+
 # STAC:MLM has fields to apply a custom pre- and post-processing functions.
 # - Allowing them is dangerous as it can be exploited as a remote code execution.
 # - Disallowing them limits OPD-ML's versatility, as ML model outputs cannot be
