@@ -1,22 +1,18 @@
-import argparse
-import os
 from collections.abc import Iterable
-from glob import glob
 from multiprocessing import Process
 from pathlib import Path
 
 import numpy as np
 import torch
 
+from openeo_processes_dask_ml.model_execution._argparser import get_parser
 from openeo_processes_dask_ml.process_implementations.utils.proc_expression_utils import (
     run_expression,
 )
 
-n_cuda_devices = torch.cuda.device_count()
 
-
-def get_file_chunk(tmp_dir_input, start_chunk: int, num_chunks: int):
-    all_files = sorted(glob(os.path.join(tmp_dir_input, "*.npy")))
+def get_file_chunk(tmp_dir_input: Path, start_chunk: int, num_chunks: int):
+    all_files = list(tmp_dir_input.glob("*.npy"))
     file_chunk = all_files[start_chunk::num_chunks]
     return file_chunk
 
@@ -83,11 +79,23 @@ def predict(
 
 def start_prediction_processes(
     model_path: str,
-    tmp_dir_input: str,
-    tmp_dir_output: str,
+    tmp_dir_input: Path,
+    tmp_dir_output: Path,
     preproc_expression=None,
     postproc_expression=None,
+    n_cuda_devices: int = None,
 ):
+    if n_cuda_devices is None:
+        # default: use all devices available
+        n_cuda_devices = torch.cuda.device_count()
+    else:
+        devices_available = torch.cuda.device_count()
+        if n_cuda_devices > devices_available:
+            raise ValueError(
+                f"Not enough cuda devices: Requested {devices_available} "
+                f"but {n_cuda_devices} were requested."
+            )
+    print("CUDA Devices:", n_cuda_devices)
     processes = []
     for cuda_id in range(n_cuda_devices):
         file_chunk = get_file_chunk(tmp_dir_input, cuda_id, n_cuda_devices)
@@ -108,56 +116,20 @@ def start_prediction_processes(
     for p in processes:
         p.join()
 
+    return True
 
-# def existing_file(path):
-#     if not os.path.isfile(path):
-#         raise argparse.ArgumentTypeError(
-#             f"{path} is not a valid file."
-#         )
-#     return path
-#
-# def existing_dir(path):
-#     if not os.path.isdir(path):
-#         raise argparse.ArgumentTypeError(
-#             f"{path} is not a valid directory")
-#     return path
-#
-#
-# if __name__ == "__main__":
-#     parser = argparse.ArgumentParser(
-#         prog="ProgramName",
-#         description="What the program does",
-#     )
-#
-#     parser.add_argument(
-#         "torchscript_path",
-#         help="Path to the torchscript model which will be used for predcition",
-#         type=existing_file
-#     )
-#     parser.add_argument(
-#         "input_dir",
-#         help="Input directory of .npy files form which will be predicted",
-#         type=existing_dir
-#     )
-#     parser.add_argument(
-#         "output_dir",
-#         help="Output directory of prediction results",
-#         type=existing_dir
-#     )
-#
-#     parser.add_argument(
-#         "--preprocessing_function",
-#         help="Python preprocessing function",
-#         required=False,
-#         type=str
-#     )
-#
-#     parser.add_argument(
-#         "--postprocessing_function",
-#         help="Python postprocessing function",
-#         required=False,
-#         type=str
-#     )
-#
-#     args = parser.parse_args()
-#     print(args)
+
+if __name__ == "__main__":
+    # CWD must be project root for imports and everything to work
+
+    args = get_parser().parse_args()
+
+    ex = start_prediction_processes(
+        args.torchscript_path,
+        args.input_dir,
+        args.output_dir,
+        args.preprocessing_function,
+        args.postprocessing_function,
+        args.n_cuda_devices,
+    )
+    print(ex)
