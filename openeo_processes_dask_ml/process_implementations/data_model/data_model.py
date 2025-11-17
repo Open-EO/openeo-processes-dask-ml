@@ -905,6 +905,13 @@ class MLModel(ABC):
 
     @dask.delayed
     def predict_in_subprocess(self, tmp_dir_input, tmp_dir_output, dependence_obj):
+        self.start_subprocess_for_prediction(
+            self._model_filepath,
+            tmp_dir_input,
+            tmp_dir_output,
+            self.input.pre_processing_function,
+            self.output.post_processing_function,
+        )
         return True
 
     @dask.delayed
@@ -1180,7 +1187,14 @@ class MLModel(ABC):
         pass
 
     @abstractmethod
-    def start_subprocess_for_prediction(self):
+    def start_subprocess_for_prediction(
+        self,
+        model_filepath: str,
+        tmp_dir_input: str,
+        tmp_dir_output: str,
+        preproc_expression,
+        postproc_expression,
+    ):
         pass
 
     @abstractmethod
