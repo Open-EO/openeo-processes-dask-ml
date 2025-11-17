@@ -26,6 +26,26 @@ TMP_DIR = os.environ.get("OPD_TMP_DIR", "./tmp")
 
 USE_GPU = _get_boolean_env("OPD_ML_USE_GPU", True)
 
+# OPD_MODEL_EXECUTION_MODE Env discription
+#
+# if mode "dask" (default): make computation directly in ONE dask worker
+#   - only uses ONE GPU
+#   - best for local use
+
+# if mode "subprocess": one dask worker starts a subprocess which runs the model
+#   - multi-GPU: Multi-processing in the subprocess to handle multiple GPUs
+#   - Computations only in one machine -> multiple nodes in cluster not supported
+#
+# if mode "slurm": submit one or many slurm jobs: CURRENTLY NOT SUPPORTED
+#   - n gpus per slurm job
+#   - processes ends means that jobs have been submitted
+#   - polling about status of the job
+#   - handle dask-worker(s) timing out and restarting
+#   - ...
+#   - one slurm job for beginning, multiple slurm jobs later
+#   - multiple slurm jobs: handle concurrency to prevent race conditions
+#   - one slurm job could have finnished everything before another one started
+#   - when finnished, start dask workers again and continue processing
 MODEL_EXECUTION_MODE = os.environ.get("OPD_MODEL_EXECUTION_MODE", "dask")
 _execution_modes = ["dask", "subprocess", "slurm"]
 if MODEL_EXECUTION_MODE not in _execution_modes:
