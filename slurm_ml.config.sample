@@ -1,0 +1,14 @@
+# example script of how to configure model execution via SLURM
+
+# must be key-value pairs, seperated by equal =
+# e.g. partition=compute-gpu
+
+job-name = openeo-processes-dask-ml
+partition = asdf
+ntasks = 1
+cpus-per-task = 32
+mem = 64G
+time = 00:20:00
+gres = gpu:1
+output = slurm-%j.out
+error = slurm-%j.err
