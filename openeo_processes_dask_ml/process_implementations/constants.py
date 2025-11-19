@@ -54,6 +54,10 @@ if MODEL_EXECUTION_MODE not in _execution_modes:
         f"{', '.join(_execution_modes)}"
     )
 
+SLURM_ML_CONFIG_PATH = os.environ.get("OPD_SLURM_ML_CONFIG_PATH", "./slurm_ml.config")
+if MODEL_EXECUTION_MODE == "slurm" and not os.path.isfile(SLURM_ML_CONFIG_PATH):
+    raise ValueError(f"Path to SLURM config path is not a valid file path.")
+
 # STAC:MLM has fields to apply a custom pre- and post-processing functions.
 # - Allowing them is dangerous as it can be exploited as a remote code execution.
 # - Disallowing them limits OPD-ML's versatility, as ML model outputs cannot be
