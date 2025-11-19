@@ -931,7 +931,7 @@ class MLModel(ABC):
         if not slurm_job.created:
             # create slurm job, if none has been created before
             # worker could have crashed or timed out, but job was still submitted before
-            model_script = ["foo", "bar"]
+            model_script = self.get_run_command(tmp_dir_input, tmp_dir_output)
             slurm_job.create_job(model_script)
 
         slurm_job.wait_till_finnished()
