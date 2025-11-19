@@ -1,6 +1,7 @@
 import itertools
 import logging
 import os.path
+import subprocess
 from abc import ABC, abstractmethod
 from collections.abc import Iterable
 from pathlib import Path
@@ -40,6 +41,7 @@ from openeo_processes_dask_ml.process_implementations.utils import (
     model_cache_utils,
     proc_expression_utils,
     scaling_utils,
+    slurm_utils,
 )
 
 logger = logging.getLogger(__name__)
@@ -905,17 +907,35 @@ class MLModel(ABC):
 
     @dask.delayed
     def predict_in_subprocess(self, tmp_dir_input, tmp_dir_output, dependence_obj):
-        self.start_subprocess_for_prediction(
-            self._model_filepath,
-            tmp_dir_input,
-            tmp_dir_output,
-            self.input.pre_processing_function,
-            self.output.post_processing_function,
-        )
+        subproc_list = self.get_run_command(tmp_dir_input, tmp_dir_output)
+
+        if self.input.pre_processing_function is not None:
+            subproc_list.append("--preprocessing_function")
+            subproc_list.append(self.input.pre_processing_function.expression)
+
+        if self.output.post_processing_function is not None:
+            subproc_list.append("--postprocessing_function")
+            subproc_list.append(self.output.post_processing_function.expression)
+
+        s = subprocess.run(subproc_list)
+
+        if s.returncode != 0:
+            raise Exception("Something went wrong in Prediction subprocess")
+
         return True
 
     @dask.delayed
     def predict_in_slurm_job(self, tmp_dir_input, tmp_dir_output, dependence_obj):
+        slurm_job = slurm_utils.SLURMJob(Path(tmp_dir_input))
+
+        if not slurm_job.created:
+            # create slurm job, if none has been created before
+            # worker could have crashed or timed out, but job was still submitted before
+            model_script = ["foo", "bar"]
+            slurm_job.create_job(model_script)
+
+        slurm_job.wait_till_finnished()
+
         return True
 
     def load_prediction(
@@ -1187,16 +1207,5 @@ class MLModel(ABC):
         pass
 
     @abstractmethod
-    def start_subprocess_for_prediction(
-        self,
-        model_filepath: str,
-        tmp_dir_input: str,
-        tmp_dir_output: str,
-        preproc_expression,
-        postproc_expression,
-    ):
-        pass
-
-    @abstractmethod
-    def submit_slurm_job_for_prediction(self):
+    def get_run_command(self, tmp_dir_input, tmp_dir_output) -> list[str]:
         pass
