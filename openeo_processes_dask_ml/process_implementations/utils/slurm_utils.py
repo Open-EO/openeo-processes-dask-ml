@@ -14,14 +14,29 @@ def get_config() -> list[str]:
     config = {}
     with open(SLURM_ML_CONFIG_PATH) as configfile:
         for i, line in enumerate(configfile):
+            # ignore empty lines
+            if line.strip() == "":
+                continue
+
+            # ignore comments
+            if line.strip()[0] == "#":
+                continue
+
             configline = line.split("=")
+
             if len(configline) != 2:
                 raise ValueError(
                     f"SLURM Config file invalid. "
                     f'Only one key-value pair per line is allowed, seperated by "=". '
                     f"Error in line {i+1}."
                 )
+
             key, value = configline
+
+            if "#" in value:
+                value = value.split("#")[0]
+
+            key, value = key.strip(), value.strip()
             config[key] = value
 
     check_config(config)
