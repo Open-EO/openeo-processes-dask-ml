@@ -1,4 +1,5 @@
 import os
+from pathlib import Path
 
 
 def _get_boolean_env(env_name, default_value: bool) -> bool:
@@ -56,7 +57,10 @@ if MODEL_EXECUTION_MODE not in _execution_modes:
 
 SLURM_ML_CONFIG_PATH = os.environ.get("OPD_SLURM_ML_CONFIG_PATH", "./slurm_ml.config")
 if MODEL_EXECUTION_MODE == "slurm" and not os.path.isfile(SLURM_ML_CONFIG_PATH):
-    raise ValueError(f"Path to SLURM config path is not a valid file path.")
+    raise ValueError(
+        f"SLURM config path OPD_SLURM_ML_CONFIG_PATH is not a valid file path: "
+        f"{Path(SLURM_ML_CONFIG_PATH).resolve()}"
+    )
 
 # STAC:MLM has fields to apply a custom pre- and post-processing functions.
 # - Allowing them is dangerous as it can be exploited as a remote code execution.
