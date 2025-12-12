@@ -27,8 +27,6 @@ class DummyMLModel(MLModel):
             out_batch_idx = out_dims.index("batch")
             out_dc_shape[out_batch_idx] = n_batches
 
-        print(out_dc_shape)
-
         r = xr.DataArray(
             np.random.random(out_dc_shape).astype(out_dtype), dims=out_dims
         )
@@ -44,8 +42,5 @@ class DummyMLModel(MLModel):
     ):
         pass
 
-    def start_subprocess_for_prediction(self):
-        pass
-
-    def submit_slurm_job_for_prediction(self):
+    def get_run_command(self, tmp_dir_input, tmp_dir_output) -> list[str]:
         pass
