@@ -1,7 +1,9 @@
 import itertools
 import logging
 import os.path
+import subprocess
 from abc import ABC, abstractmethod
+from collections.abc import Iterable
 from pathlib import Path
 from uuid import uuid4
 
@@ -24,6 +26,7 @@ from pystac.extensions.mlm import (
 
 from openeo_processes_dask_ml.process_implementations.constants import (
     MODEL_CACHE_DIR,
+    MODEL_EXECUTION_MODE,
     TMP_DIR,
 )
 from openeo_processes_dask_ml.process_implementations.exceptions import (
@@ -38,6 +41,7 @@ from openeo_processes_dask_ml.process_implementations.utils import (
     model_cache_utils,
     proc_expression_utils,
     scaling_utils,
+    slurm_utils,
 )
 
 logger = logging.getLogger(__name__)
@@ -887,42 +891,50 @@ class MLModel(ABC):
         return np.array(wrapped_tile_id, dtype="S36")
 
     @dask.delayed
-    def predict(
-        self, tmp_dir_input: str, tmp_dir_output: str, dependency_object
-    ) -> bool:
-        # This function performs the prediction using the model on the saved .npy files
-        # This is a very simple implementation, but can be improved
-        # Ideas for the future, e.g.
-        #
-        # - Offload prediction to new process (e.g. new SLURM job with GPU ressource)
-        #   Challenge: timing of xarray SLURM job and ML job
-        #   (one job times out, the other one is not finnished or started yet)
-        #
-        # - call an external script to handle predictions (scale, parallel, multi-gpu)
-        #
-        # - Make ML inside a docker container to handle different frameworks, versions
-        #
-        # - Currently, all predictions are happening on one dask worker, even if
-        #   multiple are available -> bad use of ressources
-        #   Improve: Use all dask workers and make predictions simultaneously.
-        #   Find a mechanism so that it is predetermined which worker will work on which
-        #   saved block of data
-        #   Challenge: make this work both in local computations, with threads/processes
-        #   and on LocalCluster, and on SLURMCluster
+    def predict_in_dask_worker(self, tmp_dir_input, tmp_dir_output, dependence_obj):
+        in_dir_path = Path(tmp_dir_input)
+        files = in_dir_path.glob("*.npy")
+        out_dir_path = Path(tmp_dir_output)
 
-        model_object = self.create_model_object(self._model_filepath)
-        model_object = self.model_to_device(model_object)
+        self.make_predictions(
+            self._model_filepath,
+            files,
+            out_dir_path,
+            self.input.pre_processing_function,
+            self.output.post_processing_function,
+        )
+        return True
 
-        input_dir = Path(tmp_dir_input)
+    @dask.delayed
+    def predict_in_subprocess(self, tmp_dir_input, tmp_dir_output, dependence_obj):
+        subproc_list = self.get_run_command(tmp_dir_input, tmp_dir_output)
 
-        for npy_path in input_dir.glob("*.npy"):
-            # Load numpy array
-            batch = np.load(npy_path)
+        if self.input.pre_processing_function is not None:
+            subproc_list.append("--preprocessing_function")
+            subproc_list.append(self.input.pre_processing_function.expression)
 
-            output = self.execute_model(model_object, batch)
+        if self.output.post_processing_function is not None:
+            subproc_list.append("--postprocessing_function")
+            subproc_list.append(self.output.post_processing_function.expression)
 
-            # write output back to disk
-            np.save(str(npy_path).replace("input", "output"), output)
+        s = subprocess.run(subproc_list)
+
+        if s.returncode != 0:
+            raise Exception("Something went wrong in Prediction subprocess")
+
+        return True
+
+    @dask.delayed
+    def predict_in_slurm_job(self, tmp_dir_input, tmp_dir_output, dependence_obj):
+        slurm_job = slurm_utils.SLURMJob(Path(tmp_dir_input))
+
+        if not slurm_job.created:
+            # create slurm job, if none has been created before
+            # worker could have crashed or timed out, but job was still submitted before
+            model_script = self.get_run_command(tmp_dir_input, tmp_dir_output)
+            slurm_job.create_job(model_script)
+
+        slurm_job.wait_till_finnished()
 
         return True
 
@@ -1032,7 +1044,24 @@ class MLModel(ABC):
         # Add delayed function to process graph
         # This function executes after all batches have been saved to disk
         # Predict from the saved batches, save results to disk as .npy
-        executed = self.predict(tmp_dir_input, "asdf", saved_data)
+        if MODEL_EXECUTION_MODE == "dask":
+            executed = self.predict_in_dask_worker(
+                tmp_dir_input, tmp_dir_output, saved_data
+            )
+        elif MODEL_EXECUTION_MODE == "subprocess":
+            executed = self.predict_in_subprocess(
+                tmp_dir_input, tmp_dir_output, saved_data
+            )
+        elif MODEL_EXECUTION_MODE == "slurm":
+            executed = self.predict_in_slurm_job(
+                tmp_dir_input, tmp_dir_output, saved_data
+            )
+        else:
+            # this should not be reached as we catch invalid modes earlier.
+            # Just for type hinting
+            raise NotImplementedError(
+                f"Execution mode {MODEL_EXECUTION_MODE} not supported"
+            )
 
         # Reconstruct the datacube from the saved predictions
         model_out = saved_data.map_blocks(
@@ -1138,34 +1167,6 @@ class MLModel(ABC):
 
         return xr.concat(scaled_bands, dim=band_dim_name)
 
-    def preprocess_datacube_expression(self, input_obj) -> xr.DataArray:
-        pre_proc_expression = self.input.pre_processing_function
-        if pre_proc_expression is None:
-            return input_obj
-
-        try:
-            pre_processing_result = proc_expression_utils.run_process_expression(
-                input_obj, pre_proc_expression
-            )
-        except ExpressionEvaluationException as e:
-            raise Exception(
-                f"Error applying pre-processing function to datacube: {str(e)}"
-            )
-        return pre_processing_result
-
-    def postprocess_datacube_expression(self, output_obj):
-        post_proc_expression = self.output.post_processing_function
-        if post_proc_expression is None:
-            return output_obj
-
-        try:
-            post_processed_output = proc_expression_utils.run_process_expression(
-                output_obj, post_proc_expression
-            )
-        except ExpressionEvaluationException as e:
-            raise Exception(f"Error applying post-processing function: {str(e)}")
-        return post_processed_output
-
     def preprocess_datacube(self, datacube: xr.DataArray) -> xr.DataArray:
         # processing expression formats
         # gdal-calc, openeo, rio-calc, python, docker, uri
@@ -1194,32 +1195,17 @@ class MLModel(ABC):
 
         return post_cube_reorderd
 
-    def create_object(self):
-        return self.create_model_object(self._model_filepath)
-
     @abstractmethod
-    def model_from_device(self, model_object):
+    def make_predictions(
+        self,
+        model_filepath: str,
+        files: Iterable[Path],
+        tmp_dir_output: Path,
+        preproc_expression,
+        postproc_expression,
+    ):
         pass
 
     @abstractmethod
-    def model_to_device(self, model_object):
-        pass
-
-    @abstractmethod
-    def create_model_object(self, filepath: str):
-        """
-        Create a model object in the respective framework.
-        :param filepath: Path to the model object
-        :return: None
-        """
-        pass
-
-    @abstractmethod
-    def execute_model(self, model, batch: np.ndarray) -> xr.DataArray:
-        """
-        Make a prediction with the model object
-        :param batch: The object which will be passed to the model to make a
-        prediction on. Must have been transformed to a shape to be accepted by the model
-        :return: None
-        """
+    def get_run_command(self, tmp_dir_input, tmp_dir_output) -> list[str]:
         pass
