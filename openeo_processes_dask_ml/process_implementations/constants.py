@@ -47,8 +47,8 @@ USE_GPU = _get_boolean_env("OPD_ML_USE_GPU", True)
 #   - multiple slurm jobs: handle concurrency to prevent race conditions
 #   - one slurm job could have finnished everything before another one started
 #   - when finnished, start dask workers again and continue processing
-MODEL_EXECUTION_MODE = os.environ.get("OPD_MODEL_EXECUTION_MODE", "dask")
-_execution_modes = ["dask", "subprocess", "slurm"]
+MODEL_EXECUTION_MODE = os.environ.get("OPD_MODEL_EXECUTION_MODE", "subprocess")
+_execution_modes = ["dask", "subprocess"]
 if MODEL_EXECUTION_MODE not in _execution_modes:
     raise ValueError(
         f"Invalid ENV OPD_MODEL_EXECUTION_MODE, must be one of "
