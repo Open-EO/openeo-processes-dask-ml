@@ -5,7 +5,7 @@
 [openeo-processes-dask](https://github.com/Open-EO/openeo-processes-dask), extending it
 by machine learning capabilities.
 
-> [!WARNING]  
+> [!WARNING]
 > This package is Work-In-Progress, and everything is experimental.
 > You will likely encounter many `NotImplementedError`.\
 > At the moment, it is rather a proof-of-concept than something to be used in production.
@@ -29,8 +29,8 @@ This package is not published on PyPI yet. It can only be used from source
 ### Extensibility
 
 This package is made to be easily extensible (e.g. adding support for new
-ML frameworks) by inheriting from 
-`openeo_processes_dask_ml.process_implementations.data_model.data_model.MLModel` and implementing 
+ML frameworks) by inheriting from
+`openeo_processes_dask_ml.process_implementations.data_model.data_model.MLModel` and implementing
 the abstract methods.
 
 ### Pre-commit hooks
