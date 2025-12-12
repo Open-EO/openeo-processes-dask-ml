@@ -15,5 +15,5 @@ def test_import():
     assert "load_stac" in registered_processes
 
     # openeo-processes-dask-ml processes
-    assert "load_ml_model" in registered_processes
+    assert "load_stac_ml" in registered_processes
     assert "ml_predict" in registered_processes

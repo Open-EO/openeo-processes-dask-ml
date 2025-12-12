@@ -56,7 +56,7 @@ def _load_stac_from_local(uri: str) -> dict[str, Any]:
         return stac
 
 
-def load_ml_model(
+def load_stac_ml(
     uri: str, model_asset: str = None, input_index: int = 0, output_index: int = 0
 ) -> MLModel:
     if isinstance(input_index, float):
