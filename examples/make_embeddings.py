@@ -42,7 +42,7 @@ def run_openeo_ml_predict(model_url: str):
                 },
             },
             "load_model": {
-                "process_id": "load_ml_model",
+                "process_id": "load_stac_ml",
                 "arguments": {
                     "uri": model_url,
                     "model_asset": "weights",
@@ -75,7 +75,7 @@ if __name__ == "__main__":
 
     parser.add_argument(
         "--uri",
-        default="./examples/mlm_items/prithvi_v2_item.json",
+        default="./examples/mlm_items/terramind_item.json",
         type=str,
         help="URI to the STAC-MLM file that catalogs the ML model to apply to the datacube.",
     )

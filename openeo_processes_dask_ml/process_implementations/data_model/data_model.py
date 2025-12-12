@@ -548,6 +548,11 @@ class MLModel(ABC):
 
         in_dims_not_in_out_dims = []
         for model_in_dim, dc_in_dim in zip(in_dims_model, in_dims_datacube):
+            # special case "band" dimension, as we usually get rid of this dimension
+            # to make a prediction from them
+            if model_in_dim in dim_utils.band_dim_options:
+                continue
+
             if model_in_dim not in out_dims:
                 in_dims_not_in_out_dims.append(dc_in_dim[0])
 
@@ -939,7 +944,11 @@ class MLModel(ABC):
         return True
 
     def load_prediction(
-        self, block: np.ndarray, tmp_dir_output: str, dependence_object
+        self,
+        block: np.ndarray,
+        tmp_dir_output: str,
+        n_dims_to_embed_model_output_in: int,
+        dependence_object,
     ):
         # len of block dims should be 1 for each dim due to how we rechunked earlier
         result_id = block.item()
@@ -960,10 +969,15 @@ class MLModel(ABC):
             )
 
         # we have to "embed" the model output into extra dimensions that were not used
-        # in model prediction.
-        dims_to_expand = tuple(
-            range(len(result_arr.shape), len(result_arr.shape) + len(block.shape) - 1)
-        )  # subtract 1 to account for batch dim
+        # in model prediction, and that are not part of the model output
+        expand_range_start = len(result_arr.shape)
+        expand_range_end = (
+            len(result_arr.shape)
+            + len(block.shape)
+            + n_dims_to_embed_model_output_in
+            - 1  # subtract 1 to account for batch dim
+        )
+        dims_to_expand = tuple(range(expand_range_start, expand_range_end))
         return_array = np.expand_dims(result_arr, dims_to_expand)
 
         return return_array
@@ -1063,16 +1077,19 @@ class MLModel(ABC):
                 f"Execution mode {MODEL_EXECUTION_MODE} not supported"
             )
 
+        n_dims_not_in_output = len(self.get_input_dims_not_in_output(datacube))
+
         # Reconstruct the datacube from the saved predictions
         model_out = saved_data.map_blocks(
             self.load_prediction,
             dtype=out_dtype_np,
             chunks=chunk_out_shape,
             new_axis=range(
-                1, len(self.output.result.shape)
+                1, len(self.output.result.shape) + n_dims_not_in_output
             ),  # start at 1 as "batch" is preserved
             tmp_dir_output=tmp_dir_output,
             dependence_object=executed,
+            n_dims_to_embed_model_output_in=n_dims_not_in_output,
         )
 
         ##################################
