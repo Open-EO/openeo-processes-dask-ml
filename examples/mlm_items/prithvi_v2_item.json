@@ -137,7 +137,7 @@
                 },
                 "post_processing_function": {
                     "format": "python",
-                    "expression": "ml_datacube_bridge.output_preprocessing_functions.torch_vit_encoder_tools:get_patch_embeddings_with_cls_square"
+                    "expression": "ml_datacube_bridge.output_preprocessing_functions.torch_vit_encoder_tools:get_featuremap_with_cls"
                 }
             }
         ]

@@ -57,7 +57,7 @@
         "mlm:accelerator": "cuda",
         "mlm:accelerator_constrained": false,
         "mlm:accelerator_summary": "Unknown",
-        "mlm:batch_size_suggestion": 128,
+        "mlm:batch_size_suggestion": 16,
         "mlm:input": [
             {
                 "name": "12 Band Sentinel-2 Batch",
@@ -103,32 +103,7 @@
         ],
         "mlm:output": [
             {
-                "name": "patch-embeddings-regridded",
-                "tasks": [
-                    "classification"
-                ],
-                "result": {
-                    "shape": [
-                        -1,
-                        14,
-                        14,
-                        1024
-                    ],
-                    "dim_order": [
-                        "batch",
-                        "x",
-                        "y",
-                        "embedding"
-                    ],
-                    "data_type": "float32"
-                },
-                "post_processing_function": {
-                    "format": "python",
-                    "expression": "ml_datacube_bridge.output_preprocessing_functions.torch_vit_encoder_tools:get_patch_embeddings_without_cls_square"
-                }
-            },
-            {
-                "name": "multilevel-embeddings",
+                "name": "patch-embeddings-multilevel",
                 "tasks": [
                     "classification"
                 ],
@@ -136,26 +111,24 @@
                     "shape": [
                         -1,
                         24,
-                        14,
-                        14,
+                        196,
                         1024
                     ],
                     "dim_order": [
                         "batch",
                         "embedding_level",
-                        "x",
-                        "y",
+                        "patch",
                         "embedding"
                     ],
                     "data_type": "float32"
                 },
                 "post_processing_function": {
                     "format": "python",
-                    "expression": "ml_datacube_bridge.output_preprocessing_functions.torch_vit_encoder_tools:get_patch_embedding_without_cls_square_multilevel"
+                    "expression": "ml_datacube_bridge.output_preprocessing_functions.torch_vit_encoder_tools:patch_embeddings_multilevel"
                 }
             },
             {
-                "name": "patch-embeddings-linear",
+                "name": "patch-embeddings-last",
                 "tasks": [
                     "classification"
                 ],
@@ -178,7 +151,32 @@
                 }
             },
             {
-                "name": "patch-embeddings-linear-multilevel",
+                "name": "featuremap-embeddings-last-layer",
+                "tasks": [
+                    "classification"
+                ],
+                "result": {
+                    "shape": [
+                        -1,
+                        14,
+                        14,
+                        1024
+                    ],
+                    "dim_order": [
+                        "batch",
+                        "x",
+                        "y",
+                        "embedding"
+                    ],
+                    "data_type": "float32"
+                },
+                "post_processing_function": {
+                    "format": "python",
+                    "expression": "ml_datacube_bridge.output_preprocessing_functions.torch_vit_encoder_tools:get_featuremap_without_cls"
+                }
+            },
+            {
+                "name": "featuremap-embeddings-multilayer",
                 "tasks": [
                     "classification"
                 ],
@@ -186,20 +184,22 @@
                     "shape": [
                         -1,
                         24,
-                        196,
+                        14,
+                        14,
                         1024
                     ],
                     "dim_order": [
                         "batch",
-                        "embedding_level",
-                        "patch",
+                        "embedding_layer",
+                        "x",
+                        "y",
                         "embedding"
                     ],
                     "data_type": "float32"
                 },
                 "post_processing_function": {
                     "format": "python",
-                    "expression": "ml_datacube_bridge.output_preprocessing_functions.torch_vit_encoder_tools:lienar_patch_multilevel"
+                    "expression": "ml_datacube_bridge.output_preprocessing_functions.torch_vit_encoder_tools:get_featuremap_without_cls_multilevel"
                 }
             }
         ]

@@ -32,9 +32,9 @@ def _reorder_patch_embeddings(embedding_tensor: torch.Tensor) -> torch.Tensor:
     return reshaped
 
 
-def get_patch_embeddings_without_cls_square(t: list[torch.Tensor]) -> torch.Tensor:
+def get_featuremap_without_cls(t: list[torch.Tensor]) -> torch.Tensor:
     """
-    Reorder the output of a ViT to get each patch's embedding, assuming that the image was patched in an x*x raster, and that the output does not include
+    Reorder the output of a ViT to get the last transformer output's featuremap, assuming that the image was patched in an x*x raster, and that the output does not include
     :param t: model output: list of tensors, with each tensor having the shape (num_batches, num_patches, embedding_dim)
     :return: embeddings
     """
@@ -42,9 +42,9 @@ def get_patch_embeddings_without_cls_square(t: list[torch.Tensor]) -> torch.Tens
     return _reorder_patch_embeddings(embedding_tensor)
 
 
-def get_patch_embeddings_with_cls_square(t: list[torch.Tensor]) -> torch.Tensor:
+def get_featuremap_with_cls(t: list[torch.Tensor]) -> torch.Tensor:
     """
-    Reorder the output of a ViT to get each patch's embedding, assuming that the image was patched in an x*x raster, and that the output does include a CLS token
+    Reorder the output of a ViT to get each transformer layer's featuremap, assuming that the image was patched in an x*x raster, and that the output does include a CLS token
     :param t: model output: list of tensors, with each tensor having the shape (num_batches, num_patches, embedding_dim)
     :return: embeddings
     """
@@ -52,11 +52,11 @@ def get_patch_embeddings_with_cls_square(t: list[torch.Tensor]) -> torch.Tensor:
     return _reorder_patch_embeddings(embedding_tensor)
 
 
-def get_patch_embedding_without_cls_square_multilevel(
+def get_featuremap_without_cls_multilevel(
     t: list[torch.Tensor],
 ) -> torch.Tensor:
     """
-    Reorder the output of a ViT to get each patch's embedding after every transformation step.
+    Reorder the output of a ViT to get each transformer layer's featuremap.
     This function assumes that the image was patched in an x*x raster, and that the output does not include a CLS token.
     :param t: model output: list of tensors, with each tensor having the shape (num_batches, num_patches, embedding_dim)
     :return: embeddings after each transformation step
@@ -96,5 +96,5 @@ def get_image_cls_embedding_appended_torch(t: list[torch.Tensor]) -> torch.Tenso
     return embeddings
 
 
-def lienar_patch_multilevel(t: list[torch.Tensor]) -> torch.Tensor:
+def patch_embeddings_multilevel(t: list[torch.Tensor]) -> torch.Tensor:
     return torch.stack(t, dim=1)
