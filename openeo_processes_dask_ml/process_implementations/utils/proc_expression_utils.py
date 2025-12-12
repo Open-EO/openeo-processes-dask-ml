@@ -94,3 +94,11 @@ def run_process_expression(dc: xr.DataArray, proc: ProcessingExpression):
         _raise_format_not_implemented(p_format)
 
     _raise_format_not_implemented(p_format)
+
+
+def run_expression(input_obj, proc_expression):
+    try:
+        pre_processing_result = run_process_expression(input_obj, proc_expression)
+    except ExpressionEvaluationException as e:
+        raise Exception(f"Error applying processing function to datacube: {str(e)}")
+    return pre_processing_result

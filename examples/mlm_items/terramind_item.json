@@ -57,6 +57,7 @@
         "mlm:accelerator": "cuda",
         "mlm:accelerator_constrained": false,
         "mlm:accelerator_summary": "Unknown",
+        "mlm:batch_size_suggestion": 128,
         "mlm:input": [
             {
                 "name": "12 Band Sentinel-2 Batch",

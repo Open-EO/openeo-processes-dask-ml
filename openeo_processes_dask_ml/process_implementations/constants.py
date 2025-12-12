@@ -1,4 +1,5 @@
 import os
+from pathlib import Path
 
 
 def _get_boolean_env(env_name, default_value: bool) -> bool:
@@ -22,7 +23,44 @@ DATACUBE_CACHE_DIR = os.environ.get(
     "OPD_ML_DATACUBE_CACHE_DIR", f"{CACHE_DIR}/datacubes"
 )
 
+TMP_DIR = os.environ.get("OPD_TMP_DIR", "./tmp")
+
 USE_GPU = _get_boolean_env("OPD_ML_USE_GPU", True)
+
+# OPD_MODEL_EXECUTION_MODE Env discription
+#
+# if mode "dask" (default): make computation directly in ONE dask worker
+#   - only uses ONE GPU
+#   - best for local use
+
+# if mode "subprocess": one dask worker starts a subprocess which runs the model
+#   - multi-GPU: Multi-processing in the subprocess to handle multiple GPUs
+#   - Computations only in one machine -> multiple nodes in cluster not supported
+#
+# if mode "slurm": submit one or many slurm jobs: CURRENTLY NOT SUPPORTED
+#   - n gpus per slurm job
+#   - processes ends means that jobs have been submitted
+#   - polling about status of the job
+#   - handle dask-worker(s) timing out and restarting
+#   - ...
+#   - one slurm job for beginning, multiple slurm jobs later
+#   - multiple slurm jobs: handle concurrency to prevent race conditions
+#   - one slurm job could have finnished everything before another one started
+#   - when finnished, start dask workers again and continue processing
+MODEL_EXECUTION_MODE = os.environ.get("OPD_MODEL_EXECUTION_MODE", "subprocess")
+_execution_modes = ["dask", "subprocess"]
+if MODEL_EXECUTION_MODE not in _execution_modes:
+    raise ValueError(
+        f"Invalid ENV OPD_MODEL_EXECUTION_MODE, must be one of "
+        f"{', '.join(_execution_modes)}"
+    )
+
+SLURM_ML_CONFIG_PATH = os.environ.get("OPD_SLURM_ML_CONFIG_PATH", "./slurm_ml.config")
+if MODEL_EXECUTION_MODE == "slurm" and not os.path.isfile(SLURM_ML_CONFIG_PATH):
+    raise ValueError(
+        f"SLURM config path OPD_SLURM_ML_CONFIG_PATH is not a valid file path: "
+        f"{Path(SLURM_ML_CONFIG_PATH).resolve()}"
+    )
 
 # STAC:MLM has fields to apply a custom pre- and post-processing functions.
 # - Allowing them is dangerous as it can be exploited as a remote code execution.

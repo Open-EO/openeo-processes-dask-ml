@@ -15,3 +15,7 @@ class BandNotFoundException(OpenEOException):
 
 class ReferenceSystemNotFound(OpenEOException):
     pass
+
+
+class SLURMException(Exception):
+    pass

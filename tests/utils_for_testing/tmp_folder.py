@@ -2,7 +2,7 @@ import os
 
 
 def prepare_tmp_folder(
-    dir_path: str = "./tmp", file_name: str = "file.bin"
+    dir_path: str = "./test_tmp", file_name: str = "file.bin"
 ) -> tuple[str, str]:
     file_path = dir_path + "/" + file_name
     if not os.path.exists(dir_path):
@@ -12,7 +12,7 @@ def prepare_tmp_folder(
     return dir_path, file_path
 
 
-def clear_tmp_folder(dir_path: str = "./tmp", file_name: str = "file.bin"):
+def clear_tmp_folder(dir_path: str = "./test_tmp", file_name: str = "file.bin"):
     file_path = dir_path + "/" + file_name
     os.remove(file_path)
     os.rmdir(dir_path)

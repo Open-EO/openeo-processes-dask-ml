@@ -1,7 +1,11 @@
 import itertools
 import logging
 import os.path
+import subprocess
 from abc import ABC, abstractmethod
+from collections.abc import Iterable
+from pathlib import Path
+from uuid import uuid4
 
 import dask.delayed
 import numpy as np
@@ -20,7 +24,11 @@ from pystac.extensions.mlm import (
     _AssetMLMExtension,
 )
 
-from openeo_processes_dask_ml.process_implementations.constants import MODEL_CACHE_DIR
+from openeo_processes_dask_ml.process_implementations.constants import (
+    MODEL_CACHE_DIR,
+    MODEL_EXECUTION_MODE,
+    TMP_DIR,
+)
 from openeo_processes_dask_ml.process_implementations.exceptions import (
     ExpressionEvaluationException,
     LabelDoesNotExist,
@@ -33,6 +41,7 @@ from openeo_processes_dask_ml.process_implementations.utils import (
     model_cache_utils,
     proc_expression_utils,
     scaling_utils,
+    slurm_utils,
 )
 
 logger = logging.getLogger(__name__)
@@ -51,11 +60,13 @@ class MLModel(ABC):
         input_index: int = 0,
         output_index: int = 0,
     ):
+        self.job_id = str(uuid4())
+
         self._stac_item = stac_item
         self._model_asset = self._get_model_asset(model_asset_name)
         self._input_index = input_index
         self._output_index = output_index
-        self._model_object = None
+        self._model_filepath = None
 
     @property
     def model_metadata(self) -> MLMExtension:
@@ -601,7 +612,7 @@ class MLModel(ABC):
         batch_dim_len = len(in_datacube.coords["batch"])
         if "batch" in model_out_dims:
             batch_idx = model_out_dims.index("batch")
-            model_out_shape[batch_idx] = batch_dim_len
+            model_out_shape[batch_idx] = self.get_batch_size()
         else:
             model_out_shape.insert(0, batch_dim_len)
 
@@ -626,59 +637,11 @@ class MLModel(ABC):
             if dim_name in dims_not_in_model:
                 chunk_shape[dim_name] = 1
             else:
-                chunk_shape[dim_name] = len(in_datacube.coords[dim_name])
+                if dim_name == "batch":
+                    chunk_shape[dim_name] = self.get_batch_size()
+                else:
+                    chunk_shape[dim_name] = len(in_datacube.coords[dim_name])
         return chunk_shape
-
-    def feed_datacube_to_model(
-        self, datacube: np.ndarray, _, n_batches: int, n_target_dims: int
-    ) -> np.ndarray:
-        """
-        Pass values to the ML model to do prediction.
-        :param datacube: the actual values to predict on as numpy.ndarray
-        :param _: placeholder for pre-compute hook
-        :param n_batches: numbers of sample per batch to use
-        :param n_target_dims: Number of dimensions in return array
-        :return:
-        """
-        try:
-            # get dimension index of "batch" dimension
-            batch_index = self.input.input.dim_order.index("batch")
-        except ValueError:
-            # in case input has no batch dim: use 0
-            batch_index = 0
-
-        # at this point we can say the following about the datacube
-        # datacube dims: [*dims_in_model (with batch dim), *dims_not_in_model]
-        # datacube shape:
-        #   - length of dimensions in model are as they need to be to satisfy model
-        #   - length of dimensions not in model are 1
-
-        num_input_dims = len(self.input.input.shape)
-        num_datacube_dims = len(datacube.shape)
-        axes_to_squeeze = tuple(range(num_input_dims, num_datacube_dims))
-        datacube = datacube.squeeze(axis=axes_to_squeeze)
-
-        b_len = datacube.shape[batch_index]
-
-        returned_dcs = []
-        for b_idx in range(0, b_len, n_batches + 1):
-            s_dc = datacube[b_idx : b_idx + n_batches + 1]
-
-            if np.isnan(s_dc).all():
-                in_batch_size = s_dc.shape[batch_index]
-                out_shp = self.output.result.shape
-                out_shp[batch_index] = in_batch_size
-                returned_dcs.append(np.full(out_shp, float("nan")))
-            else:
-                # make prediction in framework-specific derived classes
-                model_out = self.execute_model(s_dc)
-                returned_dcs.append(model_out)
-
-        batch_stack = np.vstack(returned_dcs)
-        return_array = np.expand_dims(
-            batch_stack, tuple(range(len(batch_stack.shape), n_target_dims))
-        )
-        return return_array
 
     def resolve_batch(
         self,
@@ -705,11 +668,11 @@ class MLModel(ABC):
             raise Exception("Datacube does not have a batch dimension")
 
         # assert each batch dimension has appropriate coordinate indices
-        if len(dc_batched.coords["batch"]) != len(batch_indices):
-            raise Exception(
-                f"Different number of batches in datacube that given in batch_indices:\n"
-                f"{len(dc_batched.coords['batch'])=}, {len(batch_indices)=}"
-            )
+        # if len(dc_batched.coords["batch"]) != len(batch_indices):
+        #     raise Exception(
+        #         f"Different number of batches in datacube that given in batch_indices:\n"
+        #         f"{len(dc_batched.coords['batch'])=}, {len(batch_indices)=}"
+        #     )
 
         # set name to None to ensure that combine_by_coords will return a DataArray
         dc_batched.name = None
@@ -898,12 +861,119 @@ class MLModel(ABC):
             coord = input_dc_coords[inp_dim_name][inp_idx].data
         dc_slice.coords[inp_dim_name] = [coord]
 
+    def save_blocks(self, block: np.ndarray, tmp_dir) -> np.ndarray:
+        """
+        Save block to disk in temp folder
+        :param block: block in dask array
+        :return: UUID in array
+        """
+
+        num_input_dims = len(self.input.input.shape)
+        num_datacube_dims = len(block.shape)
+        axes_to_squeeze = tuple(range(num_input_dims, num_datacube_dims))
+
+        if np.isnan(block).all():
+            # empty block, do not write
+            tile_id = "00000000-0000-0000-0000-000000000000"
+        else:
+            tile_id = str(uuid4())
+
+            # remove dimensions not used in model input
+            squeezed_block = block.squeeze(axis=axes_to_squeeze)
+
+            # save squeezed block as .npy
+            np.save(f"{tmp_dir}/{tile_id}.npy", squeezed_block)
+
+        # lambda function to recursively wrap value in nested ists
+        # e.g. wrap_value("foo", 3) => [[["foo"]]]
+        wrap_value = lambda s, n: s if n <= 0 else wrap_value([s], n - 1)
+        wrapped_tile_id = wrap_value(tile_id, len(axes_to_squeeze) + 1)
+        return np.array(wrapped_tile_id, dtype="S36")
+
+    @dask.delayed
+    def predict_in_dask_worker(self, tmp_dir_input, tmp_dir_output, dependence_obj):
+        in_dir_path = Path(tmp_dir_input)
+        files = in_dir_path.glob("*.npy")
+        out_dir_path = Path(tmp_dir_output)
+
+        self.make_predictions(
+            self._model_filepath,
+            files,
+            out_dir_path,
+            self.input.pre_processing_function,
+            self.output.post_processing_function,
+        )
+        return True
+
+    @dask.delayed
+    def predict_in_subprocess(self, tmp_dir_input, tmp_dir_output, dependence_obj):
+        subproc_list = self.get_run_command(tmp_dir_input, tmp_dir_output)
+
+        if self.input.pre_processing_function is not None:
+            subproc_list.append("--preprocessing_function")
+            subproc_list.append(self.input.pre_processing_function.expression)
+
+        if self.output.post_processing_function is not None:
+            subproc_list.append("--postprocessing_function")
+            subproc_list.append(self.output.post_processing_function.expression)
+
+        s = subprocess.run(subproc_list)
+
+        if s.returncode != 0:
+            raise Exception("Something went wrong in Prediction subprocess")
+
+        return True
+
+    @dask.delayed
+    def predict_in_slurm_job(self, tmp_dir_input, tmp_dir_output, dependence_obj):
+        slurm_job = slurm_utils.SLURMJob(Path(tmp_dir_input))
+
+        if not slurm_job.created:
+            # create slurm job, if none has been created before
+            # worker could have crashed or timed out, but job was still submitted before
+            model_script = self.get_run_command(tmp_dir_input, tmp_dir_output)
+            slurm_job.create_job(model_script)
+
+        slurm_job.wait_till_finnished()
+
+        return True
+
+    def load_prediction(
+        self, block: np.ndarray, tmp_dir_output: str, dependence_object
+    ):
+        # len of block dims should be 1 for each dim due to how we rechunked earlier
+        result_id = block.item()
+
+        if result_id == "00000000-0000-0000-0000-000000000000":
+            try:
+                # get dimension index of "batch" dimension
+                batch_index = self.input.input.dim_order.index("batch")
+            except ValueError:
+                # in case input has no batch dim: use 0
+                batch_index = 0
+            out_shp = self.output.result.shape
+            out_shp[batch_index] = self.get_batch_size()
+            result_arr = np.full(out_shp, float("nan"))
+        else:
+            result_arr = np.load(
+                f"{tmp_dir_output}/{result_id.decode(encoding='ascii')}.npy"
+            )
+
+        # we have to "embed" the model output into extra dimensions that were not used
+        # in model prediction.
+        dims_to_expand = tuple(
+            range(len(result_arr.shape), len(result_arr.shape) + len(block.shape) - 1)
+        )  # subtract 1 to account for batch dim
+        return_array = np.expand_dims(result_arr, dims_to_expand)
+
+        return return_array
+
     def run_model(self, datacube: xr.DataArray) -> xr.DataArray:
         # first check if all dims required by model are in data cube
         self.check_datacube_dimensions(datacube, ignore_batch_dim=True)
 
-        if self._model_object is None:
-            self.create_object()
+        if self._model_filepath is None:
+            self._model_filepath = self._get_model()
 
         input_dim_mapping = self.get_datacube_dimension_mapping(datacube)
 
@@ -924,6 +994,8 @@ class MLModel(ABC):
 
         dims_not_in_model = self.get_dims_not_in_model(datacube)
         chunk_shape = self.get_chunk_shape(input_dc)
+
+        # re-chunk datacube: 1 chunk = 1 batch to predict on
         new_chunked = input_dc.chunk(chunk_shape)
 
         output_dim_mapping = self.get_datacube_output_dimension_mapping(input_dc)
@@ -937,35 +1009,70 @@ class MLModel(ABC):
         except TypeError:
             raise Exception(f"Output data type {out_dtype} not supported")
 
+        tmp_dir_input = f"{TMP_DIR}/{self.job_id}/input"
+        if not os.path.exists(tmp_dir_input):
+            os.makedirs(tmp_dir_input)
+
+        tmp_dir_output = f"{TMP_DIR}/{self.job_id}/output"
+        if not os.path.exists(tmp_dir_output):
+            os.makedirs(tmp_dir_output)
+
         # ############################################################################
         #  From now on, we operate on the dask array only, not on xarray DataArray!  #
         #  Makes things easier. We will go back to xarray later.                     #
         ##############################################################################
 
+        # extract dask array from xarray datacube
         data: da.Array = new_chunked.data
 
-        # add pre-computehook to dask graph
-        init_model = dask.delayed(self.pre_map_block_compute_hook)()
+        # determine which axes will be droped in first step
+        batch_idx = input_dc.dims.index("batch")
+        drop_axis = list(range(len(data.shape) - len(dims_not_in_model)))
+        drop_axis.pop(batch_idx)
+        drop_axis = tuple(drop_axis)
 
-        # Map the function to predict to each datacube block (chunk)
-        block_mapped = data.map_blocks(
-            self.feed_datacube_to_model,
-            init_model,
-            dtype=out_dtype_np,
-            drop_axis=dims_removed,
-            new_axis=dims_added,
-            chunks=chunk_out_shape,
-            # kwargs passed to callback function
-            n_batches=n_batches,  # number of samples to use per batch
-            n_target_dims=len(chunk_out_shape),
+        # save all batches to disk as .npy files, replace them with a UUID in array
+        # This simplifies coordination between dask, ML framework and GPU
+        saved_data = data.map_blocks(
+            self.save_blocks,
+            dtype=np.dtype("S36"),
+            chunks=(1,) * (len(dims_not_in_model) + 1),
+            drop_axis=drop_axis,
+            tmp_dir=tmp_dir_input,
         )
 
-        # add post-compute hook
-        uninit_model = dask.delayed(self.post_map_block_compute_hook)(block_mapped)
+        # Add delayed function to process graph
+        # This function executes after all batches have been saved to disk
+        # Predict from the saved batches, save results to disk as .npy
+        if MODEL_EXECUTION_MODE == "dask":
+            executed = self.predict_in_dask_worker(
+                tmp_dir_input, tmp_dir_output, saved_data
+            )
+        elif MODEL_EXECUTION_MODE == "subprocess":
+            executed = self.predict_in_subprocess(
+                tmp_dir_input, tmp_dir_output, saved_data
+            )
+        elif MODEL_EXECUTION_MODE == "slurm":
+            executed = self.predict_in_slurm_job(
+                tmp_dir_input, tmp_dir_output, saved_data
+            )
+        else:
+            # this should not be reached as we catch invalid modes earlier.
+            # Just for type hinting
+            raise NotImplementedError(
+                f"Execution mode {MODEL_EXECUTION_MODE} not supported"
+            )
 
-        # make dask array from post-compute hook
-        model_out = da.from_delayed(
-            uninit_model, shape=block_mapped.shape, dtype=block_mapped.dtype
+        # Reconstruct the datacube from the saved predictions
+        model_out = saved_data.map_blocks(
+            self.load_prediction,
+            dtype=out_dtype_np,
+            chunks=chunk_out_shape,
+            new_axis=range(
+                1, len(self.output.result.shape)
+            ),  # start at 1 as "batch" is preserved
+            tmp_dir_output=tmp_dir_output,
+            dependence_object=executed,
         )
 
         ##################################
@@ -988,13 +1095,6 @@ class MLModel(ABC):
 
         post_cube = self.postprocess_datacube(datacube, resolved_datacube)
         return post_cube
-
-    def pre_map_block_compute_hook(self):
-        self.init_model_for_prediction()
-
-    def post_map_block_compute_hook(self, result):
-        self.uninit_model_after_prediction()
-        return result
 
     def reorder_out_dc_dims(
         self, in_cube: xr.DataArray, out_cube: xr.DataArray
@@ -1067,34 +1167,6 @@ class MLModel(ABC):
 
         return xr.concat(scaled_bands, dim=band_dim_name)
 
-    def preprocess_datacube_expression(self, input_obj) -> xr.DataArray:
-        pre_proc_expression = self.input.pre_processing_function
-        if pre_proc_expression is None:
-            return input_obj
-
-        try:
-            pre_processing_result = proc_expression_utils.run_process_expression(
-                input_obj, pre_proc_expression
-            )
-        except ExpressionEvaluationException as e:
-            raise Exception(
-                f"Error applying pre-processing function to datacube: {str(e)}"
-            )
-        return pre_processing_result
-
-    def postprocess_datacube_expression(self, output_obj):
-        post_proc_expression = self.output.post_processing_function
-        if post_proc_expression is None:
-            return output_obj
-
-        try:
-            post_processed_output = proc_expression_utils.run_process_expression(
-                output_obj, post_proc_expression
-            )
-        except ExpressionEvaluationException as e:
-            raise Exception(f"Error applying post-processing function: {str(e)}")
-        return post_processed_output
-
     def preprocess_datacube(self, datacube: xr.DataArray) -> xr.DataArray:
         # processing expression formats
         # gdal-calc, openeo, rio-calc, python, docker, uri
@@ -1123,48 +1195,17 @@ class MLModel(ABC):
 
         return post_cube_reorderd
 
-    def create_object(self):
-        if self._model_object is not None:
-            # model object has already been created
-            return
-
-        model_filepath = self._get_model()
-        self.create_model_object(model_filepath)
-
     @abstractmethod
-    def create_model_object(self, filepath: str):
-        """
-        Create a model object (self._model_object) in the respective framework.
-        :param filepath: Path to the model object
-        :return: None
-        """
+    def make_predictions(
+        self,
+        model_filepath: str,
+        files: Iterable[Path],
+        tmp_dir_output: Path,
+        preproc_expression,
+        postproc_expression,
+    ):
         pass
 
     @abstractmethod
-    def init_model_for_prediction(self):
-        """
-        Initiate the model object, e.g. move it to the cuda device. This function will
-        be executed before prediction from datacube values.
-        :return: None
-        """
-        pass
-
-    @abstractmethod
-    def uninit_model_after_prediction(self):
-        """
-        Uninitialize the model after model prediction, e.g. take it off the cuda device.
-        This function will be executed after all prediction on the datacube are
-        completed
-        :return: None
-        """
-        pass
-
-    @abstractmethod
-    def execute_model(self, batch: np.ndarray) -> xr.DataArray:
-        """
-        Make a prediction with the model object
-        :param batch: The object which will be passed to the model to make a
-        prediction on. Must have been transformed to a shape to be accepted by the model
-        :return: None
-        """
+    def get_run_command(self, tmp_dir_input, tmp_dir_output) -> list[str]:
         pass
