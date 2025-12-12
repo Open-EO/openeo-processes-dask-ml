@@ -59,6 +59,11 @@ def _load_stac_from_local(uri: str) -> dict[str, Any]:
 def load_ml_model(
     uri: str, model_asset: str = None, input_index: int = 0, output_index: int = 0
 ) -> MLModel:
+    if isinstance(input_index, float):
+        input_index = int(input_index)
+    if isinstance(output_index, float):
+        output_index = int(output_index)
+
     if type(uri) is not str:
         raise ValueError("Type of URI parameter must be a string.")
 
