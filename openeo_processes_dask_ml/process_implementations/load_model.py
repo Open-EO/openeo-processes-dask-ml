@@ -59,6 +59,10 @@ def _load_stac_from_local(uri: str) -> dict[str, Any]:
 def load_stac_ml(
     uri: str, model_asset: str = None, input_index: int = 0, output_index: int = 0
 ) -> MLModel:
+    # there was a bug in an older version of openeo-pg-parser-networkx where integer
+    # arguments were passed as floats
+    # (https://github.com/Open-EO/openeo-pg-parser-networkx/issues/110)
+    # Therefore, to maintain compatibility with older versions
     if isinstance(input_index, float):
         input_index = int(input_index)
     if isinstance(output_index, float):
