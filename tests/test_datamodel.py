@@ -1,7 +1,6 @@
 import os
 import unittest.mock
 import uuid
-from datetime import datetime
 
 import dask.array as da
 import numpy as np
@@ -513,12 +512,37 @@ def test_save_block_nans(mlm_item):
     assert uuid_str == "00000000-0000-0000-0000-000000000000"
 
 
-def test_feed_datacube_to_model():
-    pass
+def test_load_prediction(mlm_item):
+    d = DummyMLModel(mlm_item)
+
+    tmp_dir = tmp_folder.make_tmp_folder()
+
+    np.save(tmp_dir + "/" + "asdf.npy", np.array([1, 2]))
+    block = np.array([[b"asdf"]])
+
+    loaded_block = d.load_prediction(block, tmp_dir, 2, None)
+
+    assert loaded_block.shape == (2, 1, 1, 1)
+    assert np.all(loaded_block == np.array([[[[1]]], [[[2]]]]))
+
+    tmp_folder.clear_tmp_folder()
 
 
-def test_run_model():
-    pass
+def test_load_prediction_nans(mlm_item):
+    d = DummyMLModel(mlm_item)
+    batch_count = 12  # todo: dont hard-code batch count
+
+    block = np.array([[b"00000000-0000-0000-0000-000000000000"]])
+    loaded_block = d.load_prediction(block, "foo", 2, None)
+
+    out_dims = mlm_item.ext.mlm.output[0].result.dim_order
+    out_shp = mlm_item.ext.mlm.output[0].result.shape
+
+    out_shp[out_dims.index("batch")] = batch_count
+    out_shp.extend([1, 1, 1])
+
+    assert loaded_block.shape == tuple(out_shp)  # this fails if the batch size changes
+    assert np.isnan(loaded_block).all()
 
 
 def test_reorder_out_dc_dims(mlm_item: pystac.Item):
