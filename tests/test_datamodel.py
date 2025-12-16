@@ -7,6 +7,7 @@ import numpy as np
 import pystac
 import pytest
 import xarray as xr
+from dask.delayed import Delayed
 from openeo_processes_dask.process_implementations.exceptions import (
     DimensionMismatch,
     DimensionMissing,
@@ -537,12 +538,36 @@ def test_load_prediction_nans(mlm_item):
 
     out_dims = mlm_item.ext.mlm.output[0].result.dim_order
     out_shp = mlm_item.ext.mlm.output[0].result.shape
-
     out_shp[out_dims.index("batch")] = batch_count
     out_shp.extend([1, 1, 1])
+    out_shp = tuple(out_shp)
 
-    assert loaded_block.shape == tuple(out_shp)  # this fails if the batch size changes
+    assert loaded_block.shape == out_shp  # this fails if the batch size changes
     assert np.isnan(loaded_block).all()
+
+
+def test_predict_in_dask_worker(mlm_item):
+    d = DummyMLModel(mlm_item)
+
+    tmp_in_path = tmp_folder.make_tmp_folder("tmp_input")
+    tmp_out_path = tmp_folder.make_tmp_folder("tmp_output")
+
+    with open(tmp_in_path + "/" + "a.npy", "w") as file:
+        file.write("asdf")
+    with open(tmp_in_path + "/" + "b.npy", "w") as file:
+        file.write("asdf")
+
+    out = d.predict_in_dask_worker(tmp_in_path, tmp_out_path, None)
+
+    assert isinstance(out, Delayed)
+
+    out = out.compute()
+
+    assert isinstance(out, bool)
+    assert out is True
+
+    tmp_folder.clear_tmp_folder(tmp_in_path)
+    tmp_folder.clear_tmp_folder(tmp_out_path)
 
 
 def test_reorder_out_dc_dims(mlm_item: pystac.Item):
