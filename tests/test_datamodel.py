@@ -1,4 +1,6 @@
+import os
 import unittest.mock
+import uuid
 from datetime import datetime
 
 import dask.array as da
@@ -16,6 +18,7 @@ from openeo_processes_dask_ml.process_implementations.exceptions import (
     LabelDoesNotExist,
 )
 from tests.dummy.dummy_ml_model import DummyMLModel
+from tests.utils_for_testing import tmp_folder
 
 
 def test_correct_asset_selection(
@@ -468,6 +471,46 @@ def test_get_chunk_shape(mlm_item):
     assert chunks_shape["y"] == 224
     assert chunks_shape["x"] == 224
     assert chunks_shape["time"] == 1
+
+
+def test_save_block_data(mlm_item):
+    mlm_item.ext.mlm.input[0].input.shape = [-1, 2, 4, 4]
+    block = np.random.random((2, 2, 4, 4, 1))
+
+    d = DummyMLModel(mlm_item)
+
+    tmp_path = tmp_folder.make_tmp_folder()
+
+    out = d.save_blocks(block, tmp_path)
+
+    assert out.shape == (1, 1)
+
+    uuid_str = out.item().decode()
+    uuid.UUID(uuid_str)
+
+    block_filepath = tmp_path + f"/{uuid_str}.npy"
+
+    assert os.path.exists(block_filepath)
+
+    block_loaded = np.load(block_filepath)
+    assert block_loaded.shape == (2, 2, 4, 4)
+
+    tmp_folder.clear_tmp_folder(tmp_path)
+
+
+def test_save_block_nans(mlm_item):
+    mlm_item.ext.mlm.input[0].input.shape = [-1, 2, 4, 4]
+    block = np.full((2, 2, 4, 4, 1), np.nan)
+
+    d = DummyMLModel(mlm_item)
+
+    out = d.save_blocks(block, "foo")
+
+    assert out.shape == (1, 1)
+
+    uuid_str = out.item().decode()
+
+    assert uuid_str == "00000000-0000-0000-0000-000000000000"
 
 
 def test_feed_datacube_to_model():
