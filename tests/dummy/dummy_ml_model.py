@@ -40,7 +40,17 @@ class DummyMLModel(MLModel):
         preproc_expression,
         postproc_expression,
     ):
-        pass
+        out_dims = self.output.result.dim_order
+        out_shp = self.output.result.shape
+        out_shp[out_dims.index("batch")] = 2
+        out_shp = tuple(out_shp)
+
+        for file in files:
+            filename = file.name
+            dummy_output = np.random.random(out_shp)
+            np.save(tmp_dir_output / filename, dummy_output)
+
+        return True
 
     def get_run_command(self, tmp_dir_input, tmp_dir_output) -> list[str]:
         pass
