@@ -866,10 +866,11 @@ class MLModel(ABC):
             coord = input_dc_coords[inp_dim_name][inp_idx].data
         dc_slice.coords[inp_dim_name] = [coord]
 
-    def save_blocks(self, block: np.ndarray, tmp_dir) -> np.ndarray:
+    def save_blocks(self, block: np.ndarray, tmp_dir_input: str) -> np.ndarray:
         """
         Save block to disk in temp folder
         :param block: block in dask array
+        :param tmp_dir_input: tmp directory for storing input arrays
         :return: UUID in array
         """
 
@@ -887,7 +888,7 @@ class MLModel(ABC):
             squeezed_block = block.squeeze(axis=axes_to_squeeze)
 
             # save squeezed block as .npy
-            np.save(f"{tmp_dir}/{tile_id}.npy", squeezed_block)
+            np.save(f"{tmp_dir_input}/{tile_id}.npy", squeezed_block)
 
         # lambda function to recursively wrap value in nested ists
         # e.g. wrap_value("foo", 3) => [[["foo"]]]
@@ -896,7 +897,16 @@ class MLModel(ABC):
         return np.array(wrapped_tile_id, dtype="S36")
 
     @dask.delayed
-    def predict_in_dask_worker(self, tmp_dir_input, tmp_dir_output, dependence_obj):
+    def predict_in_dask_worker(
+        self, tmp_dir_input: str, tmp_dir_output: str, dependence_obj
+    ):
+        """
+        Make a prediction inside a dask worker
+        :param tmp_dir_input: path of directory of temporary input arrays
+        :param tmp_dir_output: path of directory of temporary output arrays
+        :param dependence_obj: lazy dask object to wait for.
+        :return: bool
+        """
         in_dir_path = Path(tmp_dir_input)
         files = in_dir_path.glob("*.npy")
         out_dir_path = Path(tmp_dir_output)
@@ -911,7 +921,16 @@ class MLModel(ABC):
         return True
 
     @dask.delayed
-    def predict_in_subprocess(self, tmp_dir_input, tmp_dir_output, dependence_obj):
+    def predict_in_subprocess(
+        self, tmp_dir_input: str, tmp_dir_output: str, dependence_obj
+    ):
+        """
+        Make predictions inside a new subprocess
+        :param tmp_dir_input: path of directory of temporary input arrays
+        :param tmp_dir_output: path of directory of temporary output arrays
+        :param dependence_obj: lazy dask object to wait for.
+        :return: bool
+        """
         subproc_list = self.get_run_command(tmp_dir_input, tmp_dir_output)
 
         if self.input.pre_processing_function is not None:
