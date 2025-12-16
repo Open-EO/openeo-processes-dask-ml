@@ -9,3 +9,6 @@ tests/test_tmp
 models
 
 __pycache__
+
+.coverage
+htmlcov
