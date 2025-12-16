@@ -25,6 +25,7 @@ notebook = "^7.4.4"
 graphviz = "^0.21"
 dask-labextension = "^7.0.0"
 dask-jobqueue = "^0.9.0"
+pytest-cov = "^7.0.0"
 
 
 
@@ -43,4 +44,4 @@ build-backend = "poetry.core.masonry.api"
 [tool.pytest.ini_options]
 #filterwarnings = ["error"]
 #addopts = "--block-network --record-mode=none"
-addopts = "--block-network --record-mode=new_episodes"
+addopts = "--block-network --record-mode=new_episodes --cov=openeo_processes_dask_ml --cov=minibackend --cov-report=html"
