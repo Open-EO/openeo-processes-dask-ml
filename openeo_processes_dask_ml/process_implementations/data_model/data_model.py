@@ -951,7 +951,7 @@ class MLModel(ABC):
         dependence_object,
     ):
         # len of block dims should be 1 for each dim due to how we rechunked earlier
-        result_id = block.item()
+        result_id = block.item().decode(encoding="ascii")
 
         if result_id == "00000000-0000-0000-0000-000000000000":
             try:
@@ -964,9 +964,7 @@ class MLModel(ABC):
             out_shp[batch_index] = self.get_batch_size()
             result_arr = np.full(out_shp, float("nan"))
         else:
-            result_arr = np.load(
-                f"{tmp_dir_output}/{result_id.decode(encoding='ascii')}.npy"
-            )
+            result_arr = np.load(f"{tmp_dir_output}/{result_id}.npy")
 
         # we have to "embed" the model output into extra dimensions that were not used
         # in model prediction, and that are not part of the model output
