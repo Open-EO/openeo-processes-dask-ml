@@ -1,6 +1,6 @@
-import os
 import unittest.mock
 import uuid
+from pathlib import Path
 
 import dask.array as da
 import numpy as np
@@ -18,7 +18,6 @@ from openeo_processes_dask_ml.process_implementations.exceptions import (
     LabelDoesNotExist,
 )
 from tests.dummy.dummy_ml_model import DummyMLModel
-from tests.utils_for_testing import tmp_folder
 
 
 def test_correct_asset_selection(
@@ -473,13 +472,14 @@ def test_get_chunk_shape(mlm_item):
     assert chunks_shape["time"] == 1
 
 
-def test_save_block_data(mlm_item):
+def test_save_block_data(mlm_item, monkeypatch):
     mlm_item.ext.mlm.input[0].input.shape = [-1, 2, 4, 4]
-    block = np.random.random((2, 2, 4, 4, 1))
-
+    block = np.ones((2, 2, 4, 4, 1))
     d = DummyMLModel(mlm_item)
 
-    tmp_path = tmp_folder.make_tmp_folder()
+    tmp_path = "in_tmp"
+    mock_np_save = unittest.mock.Mock(return_value=None)
+    monkeypatch.setattr(np, "save", mock_np_save)
 
     out = d.save_blocks(block, tmp_path)
 
@@ -487,54 +487,61 @@ def test_save_block_data(mlm_item):
 
     uuid_str = out.item().decode()
     uuid.UUID(uuid_str)
+    block_filepath = f"{tmp_path}/{uuid_str}.npy"
 
-    block_filepath = tmp_path + f"/{uuid_str}.npy"
+    mock_np_save.assert_called_once()
+    call_path, call_array = mock_np_save.call_args.args
 
-    assert os.path.exists(block_filepath)
-
-    block_loaded = np.load(block_filepath)
-    assert block_loaded.shape == (2, 2, 4, 4)
-
-    tmp_folder.clear_tmp_folder(tmp_path)
+    assert call_path == block_filepath
+    assert np.all(call_array == np.ones((2, 2, 4, 4)))
 
 
-def test_save_block_nans(mlm_item):
+def test_save_block_nans(mlm_item, monkeypatch):
     mlm_item.ext.mlm.input[0].input.shape = [-1, 2, 4, 4]
     block = np.full((2, 2, 4, 4, 1), np.nan)
 
-    d = DummyMLModel(mlm_item)
+    mock_save_np = unittest.mock.Mock(return_value=None)
+    monkeypatch.setattr(np, "save", mock_save_np)
 
+    d = DummyMLModel(mlm_item)
     out = d.save_blocks(block, "foo")
 
+    mock_save_np.assert_not_called()
     assert out.shape == (1, 1)
 
     uuid_str = out.item().decode()
-
     assert uuid_str == "00000000-0000-0000-0000-000000000000"
 
 
-def test_load_prediction(mlm_item):
+def test_load_prediction(mlm_item, monkeypatch):
     d = DummyMLModel(mlm_item)
 
-    tmp_dir = tmp_folder.make_tmp_folder()
+    tmp_dir = "tmp_out"
 
-    np.save(tmp_dir + "/" + "asdf.npy", np.array([1, 2]))
+    mock_np_load = unittest.mock.Mock(return_value=np.array([1, 2]))
+    monkeypatch.setattr(np, "load", mock_np_load)
+
     block = np.array([[b"asdf"]])
 
     loaded_block = d.load_prediction(block, tmp_dir, 2, None)
 
+    mock_np_load.assert_called_once_with(f"{tmp_dir}/asdf.npy")
+
     assert loaded_block.shape == (2, 1, 1, 1)
     assert np.all(loaded_block == np.array([[[[1]]], [[[2]]]]))
 
-    tmp_folder.clear_tmp_folder()
 
-
-def test_load_prediction_nans(mlm_item):
+def test_load_prediction_nans(mlm_item, monkeypatch):
     d = DummyMLModel(mlm_item)
     batch_count = 12  # todo: dont hard-code batch count
 
+    mock_np_load = unittest.mock.Mock(return_value=np.ones((1, 2)))
+    monkeypatch.setattr(np, "load", mock_np_load)
+
     block = np.array([[b"00000000-0000-0000-0000-000000000000"]])
     loaded_block = d.load_prediction(block, "foo", 2, None)
+
+    mock_np_load.assert_not_called()
 
     out_dims = mlm_item.ext.mlm.output[0].result.dim_order
     out_shp = mlm_item.ext.mlm.output[0].result.shape
@@ -546,28 +553,43 @@ def test_load_prediction_nans(mlm_item):
     assert np.isnan(loaded_block).all()
 
 
-def test_predict_in_dask_worker(mlm_item):
+def test_predict_in_dask_worker(mlm_item, monkeypatch):
     d = DummyMLModel(mlm_item)
 
-    tmp_in_path = tmp_folder.make_tmp_folder("tmp_input")
-    tmp_out_path = tmp_folder.make_tmp_folder("tmp_output")
+    file_returns = [Path("a.npy"), Path("b.npy")]
+    mock_list_files = unittest.mock.Mock(return_value=file_returns)
+    monkeypatch.setattr(Path, "glob", mock_list_files)
 
-    with open(tmp_in_path + "/" + "a.npy", "w") as file:
-        file.write("asdf")
-    with open(tmp_in_path + "/" + "b.npy", "w") as file:
-        file.write("asdf")
+    mock_make_predictions = unittest.mock.Mock(return_value=True)
+    monkeypatch.setattr(DummyMLModel, "make_predictions", mock_make_predictions)
 
-    out = d.predict_in_dask_worker(tmp_in_path, tmp_out_path, None)
+    monkeypatch.setattr(d, "_model_filepath", "asdf.model")
+    pre_func = pystac.extensions.mlm.ProcessingExpression.create("python", "pre-func")
+    post_func = pystac.extensions.mlm.ProcessingExpression.create("python", "post-func")
+    monkeypatch.setattr(d.input, "pre_processing_function", pre_func)
+    monkeypatch.setattr(d.output, "post_processing_function", post_func)
 
+    in_dir = "in_dir"
+    out_dir = "out_dir"
+
+    out = d.predict_in_dask_worker(in_dir, out_dir, None)
+
+    # mock methods not called yet as this is a dask delayed object
     assert isinstance(out, Delayed)
+    mock_list_files.assert_not_called()
+    mock_make_predictions.assert_not_called()
 
+    # after compute the mock methods have been called
     out = out.compute()
+    mock_list_files.assert_called_once()
+    mock_make_predictions.assert_called_once()
+
+    mock_make_predictions.assert_called_once_with(
+        "asdf.model", file_returns, Path(out_dir), pre_func, post_func
+    )
 
     assert isinstance(out, bool)
     assert out is True
-
-    tmp_folder.clear_tmp_folder(tmp_in_path)
-    tmp_folder.clear_tmp_folder(tmp_out_path)
 
 
 def test_reorder_out_dc_dims(mlm_item: pystac.Item):
