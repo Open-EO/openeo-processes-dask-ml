@@ -53,4 +53,5 @@ class DummyMLModel(MLModel):
         return True
 
     def get_run_command(self, tmp_dir_input, tmp_dir_output) -> list[str]:
-        pass
+        # just return dir pathes so we can test they have been passed successfully
+        return [tmp_dir_input, tmp_dir_output]
