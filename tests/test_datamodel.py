@@ -1,3 +1,4 @@
+import subprocess
 import unittest.mock
 import uuid
 from pathlib import Path
@@ -553,7 +554,8 @@ def test_load_prediction_nans(mlm_item, monkeypatch):
     assert np.isnan(loaded_block).all()
 
 
-def test_predict_in_dask_worker(mlm_item, monkeypatch):
+@pytest.mark.parametrize("exec_mode", ("dask", "subprocess"))
+def test_predict_in_dask_worker(mlm_item, monkeypatch, exec_mode):
     d = DummyMLModel(mlm_item)
 
     file_returns = [Path("a.npy"), Path("b.npy")]
@@ -562,6 +564,11 @@ def test_predict_in_dask_worker(mlm_item, monkeypatch):
 
     mock_make_predictions = unittest.mock.Mock(return_value=True)
     monkeypatch.setattr(DummyMLModel, "make_predictions", mock_make_predictions)
+
+    mock_subprocess_run = unittest.mock.Mock(
+        return_value=subprocess.CompletedProcess(args="foo", returncode=0)
+    )
+    monkeypatch.setattr(subprocess, "run", mock_subprocess_run)
 
     monkeypatch.setattr(d, "_model_filepath", "asdf.model")
     pre_func = pystac.extensions.mlm.ProcessingExpression.create("python", "pre-func")
@@ -572,21 +579,39 @@ def test_predict_in_dask_worker(mlm_item, monkeypatch):
     in_dir = "in_dir"
     out_dir = "out_dir"
 
-    out = d.predict_in_dask_worker(in_dir, out_dir, None)
+    if exec_mode == "dask":
+        out = d.predict_in_dask_worker(in_dir, out_dir, None)
+    elif exec_mode == "subprocess":
+        out = d.predict_in_subprocess(in_dir, out_dir, None)
+    else:
+        raise NotImplementedError("this should not be reached")
 
     # mock methods not called yet as this is a dask delayed object
     assert isinstance(out, Delayed)
     mock_list_files.assert_not_called()
     mock_make_predictions.assert_not_called()
+    mock_subprocess_run.assert_not_called()
 
     # after compute the mock methods have been called
     out = out.compute()
-    mock_list_files.assert_called_once()
-    mock_make_predictions.assert_called_once()
-
-    mock_make_predictions.assert_called_once_with(
-        "asdf.model", file_returns, Path(out_dir), pre_func, post_func
-    )
+    if exec_mode == "dask":
+        mock_list_files.assert_called_once()
+        mock_subprocess_run.assert_not_called()
+        mock_make_predictions.assert_called_once_with(
+            "asdf.model", file_returns, Path(out_dir), pre_func, post_func
+        )
+    elif exec_mode == "subprocess":
+        mock_make_predictions.assert_not_called()
+        mock_subprocess_run.assert_called_once_with(
+            [
+                in_dir,
+                out_dir,
+                "--preprocessing_function",
+                pre_func.expression,
+                "--postprocessing_function",
+                post_func.expression,
+            ]
+        )
 
     assert isinstance(out, bool)
     assert out is True
