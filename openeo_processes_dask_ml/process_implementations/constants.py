@@ -23,7 +23,7 @@ DATACUBE_CACHE_DIR = os.environ.get(
     "OPD_ML_DATACUBE_CACHE_DIR", f"{CACHE_DIR}/datacubes"
 )
 
-TMP_DIR = os.environ.get("OPD_TMP_DIR", "./tmp")
+TMP_DIR = os.environ.get("OPD_ML_TMP_DIR", "./tmp")
 
 USE_GPU = _get_boolean_env("OPD_ML_USE_GPU", True)
 
@@ -47,7 +47,7 @@ USE_GPU = _get_boolean_env("OPD_ML_USE_GPU", True)
 #   - multiple slurm jobs: handle concurrency to prevent race conditions
 #   - one slurm job could have finnished everything before another one started
 #   - when finnished, start dask workers again and continue processing
-MODEL_EXECUTION_MODE = os.environ.get("OPD_MODEL_EXECUTION_MODE", "subprocess")
+MODEL_EXECUTION_MODE = os.environ.get("OPD_ML_MODEL_EXECUTION_MODE", "subprocess")
 _execution_modes = ["dask", "subprocess"]
 if MODEL_EXECUTION_MODE not in _execution_modes:
     raise ValueError(
@@ -55,7 +55,10 @@ if MODEL_EXECUTION_MODE not in _execution_modes:
         f"{', '.join(_execution_modes)}"
     )
 
-SLURM_ML_CONFIG_PATH = os.environ.get("OPD_SLURM_ML_CONFIG_PATH", "./slurm_ml.config")
+# CURRENTLY NOT SUPPORTED
+SLURM_ML_CONFIG_PATH = os.environ.get(
+    "OPD_ML_SLURM_ML_CONFIG_PATH", "./slurm_ml.config"
+)
 if MODEL_EXECUTION_MODE == "slurm" and not os.path.isfile(SLURM_ML_CONFIG_PATH):
     raise ValueError(
         f"SLURM config path OPD_SLURM_ML_CONFIG_PATH is not a valid file path: "
