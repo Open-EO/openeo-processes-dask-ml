@@ -1000,6 +1000,12 @@ class MLModel(ABC):
         return return_array
 
     def run_model(self, datacube: xr.DataArray) -> xr.DataArray:
+        """
+        Reshape datacube according to ml specification, make a prediction, then re-order predicted output in a new datacube
+        :param datacube: Datacube to predict on
+        :return: Datacube holding predicted values
+        """
+
         # first check if all dims required by model are in data cube
         self.check_datacube_dimensions(datacube, ignore_batch_dim=True)
 
