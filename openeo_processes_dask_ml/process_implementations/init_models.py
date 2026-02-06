@@ -1,11 +1,7 @@
-import pickle
 from datetime import datetime
-from pathlib import Path
 from uuid import uuid4
 
 import pystac
-
-from openeo_processes_dask_ml.process_implementations.constants import MODEL_CACHE_DIR
 
 AVAILABLE_ML_FRAMEWORKS: list[str] = []
 try:
