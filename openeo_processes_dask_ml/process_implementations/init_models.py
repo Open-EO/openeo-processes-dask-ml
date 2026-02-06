@@ -239,5 +239,6 @@ def mlm_class_random_forest(
     mlm_item.validate()
 
     rf_model = RfClassModel(mlm_item, "weights")
+    rf_model.set_model_filepath(model_path)
 
     return rf_model
