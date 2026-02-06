@@ -1,7 +1,10 @@
+import pickle
 from collections.abc import Iterable
 from pathlib import Path
 
 from sklearn.ensemble import RandomForestClassifier
+
+from openeo_processes_dask_ml.process_implementations.constants import MODEL_CACHE_DIR
 
 from .data_model import MLModel
 
@@ -23,6 +26,14 @@ class SkLearnModel(MLModel):
 
 class RfClassModel(SkLearnModel):
     @staticmethod
-    def init_model(max_features, n_trees) -> RandomForestClassifier:
+    def init_model(
+        max_features: int | str | float | None, n_trees: int, model_id: str
+    ) -> str:
         r = RandomForestClassifier(n_trees, max_features=max_features)
-        return r
+
+        # save model to disk
+        modelpath = MODEL_CACHE_DIR + "/" + model_id + ".pkl"
+        with open(modelpath, "wb") as file:
+            pickle.dump(r, file)
+
+        return modelpath
