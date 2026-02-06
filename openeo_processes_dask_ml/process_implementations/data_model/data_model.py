@@ -159,6 +159,14 @@ class MLModel(ABC):
         download_utils.download(url, model_cache_file)
         return model_cache_file
 
+    def set_model_filepath(self, modelpath: str):
+        if self._model_filepath is not None:
+            raise Exception(
+                "Could not assign model file path as it has already been assigned. "
+                "This is to avoid a corrupted state"
+            )
+        self._model_filepath = modelpath
+
     def get_datacube_dimension_mapping(
         self, datacube: xr.DataArray
     ) -> list[None | tuple[str, int]]:
