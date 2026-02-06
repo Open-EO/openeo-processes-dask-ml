@@ -65,7 +65,7 @@ def mlm_class_random_forest(
                     "B12",
                 ],
                 "input": {"shape": [12], "dim_order": ["band"], "data_type": "float16"},
-                "value_scaling": [{"type": "min-max", "minimum": 0, "maximum": 1}],
+                "value_scaling": None,
                 "resize_type": None,
                 "pre_processing_function": None,
             }
