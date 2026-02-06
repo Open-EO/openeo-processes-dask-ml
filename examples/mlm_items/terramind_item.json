@@ -206,7 +206,7 @@
     },
     "assets": {
         "weights": {
-            "href": "https://drive.google.com/file/d/1cG2knFlbHu7H9_ExGDFBkjk8anfiiX-O/view?usp=sharing",
+            "href": "https://uni-muenster.sciebo.de/s/ZFQTfamiXFBKNJH/download",
             "title": "Pytorch weights checkpoint",
             "description": "mlm model weights",
             "type": "application/octet-stream; application=pytorch",
