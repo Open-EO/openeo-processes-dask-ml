@@ -1075,7 +1075,7 @@ class MLModel(ABC):
             dtype=np.dtype("S36"),
             chunks=(1,) * (len(dims_not_in_model) + 1),
             drop_axis=drop_axis,
-            tmp_dir=tmp_dir_input,
+            tmp_dir_input=tmp_dir_input,
         )
 
         # Add delayed function to process graph
