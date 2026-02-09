@@ -12,6 +12,7 @@ boto3 = "^1.38.14"
 stackstac = "^0.5.1"
 # remove this once mlm-extension is merged into upstream pystac, and openeo-processes-dask allows this as depdendency
 pystac = {git = "https://github.com/jonas-hurst/pystac", rev = "v1.11OWN"}
+brotli = "^1.2.0"
 
 
 [tool.poetry.group.dev.dependencies]
