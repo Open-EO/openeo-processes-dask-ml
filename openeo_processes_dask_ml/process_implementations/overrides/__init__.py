@@ -1,1 +1,1 @@
-from .aggregate_spatial import aggregate_spatial
+from .aggregate import aggregate_spatial
