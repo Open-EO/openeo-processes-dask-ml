@@ -1,5 +1,7 @@
 from typing import Callable
 
+import dask_geopandas as d_gpd
+import geopandas as gpd
 from openeo_processes_dask.process_implementations.cubes.aggregate import (
     aggregate_spatial as aggregate_spatial_original,
 )
@@ -7,6 +9,7 @@ from openeo_processes_dask.process_implementations.data_model import (
     RasterCube,
     VectorCube,
 )
+from xarray import Dataset
 
 
 def _merge_dicts(d1: dict[str, list], d2: dict[str, int | float | str]):
@@ -83,15 +86,29 @@ def aggregate_spatial(
 ) -> VectorCube:
     print("my own aggregate_spatial implementation")
 
-    vector_cube = aggregate_spatial_original(data, geometries, reducer, chunk_size)
-
-    # we will add geometry properties as auxilary coordinates to the vector data cube
-
     if isinstance(geometries, dict):
         # if its a dict, that means we are dealing with a geojson
         new_coords = _geojson_parse_geojson(geometries)
+    elif isinstance(geometries, gpd.GeoDataFrame):
+        raise NotImplementedError(
+            "Not Implemented, Provide geometries directly as geojson."
+        )
+    elif isinstance(geometries, d_gpd.GeoDataFrame):
+        raise NotImplementedError(
+            "Not Implemented, Provide geometries directly as geojson."
+        )
+    elif isinstance(geometries, Dataset):
+        raise NotImplementedError(
+            "Not Implemented, Provide geometries directly as geojson."
+        )
     else:
-        new_coords = {}
+        raise NotImplementedError(
+            "Not Implemented, Provide geometries directly as geojson."
+        )
+
+    vector_cube = aggregate_spatial_original(data, geometries, reducer, chunk_size)
+
+    # we will add geometry properties as non-dimensional coordinates to the vector data cube
 
     # Order of geometries in geom column is the same as in input geometry sequence
     # https://xvec.readthedocs.io/en/stable/generated/xarray.Dataset.xvec.zonal_stats.html
