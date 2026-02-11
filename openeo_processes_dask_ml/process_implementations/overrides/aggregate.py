@@ -93,11 +93,10 @@ def aggregate_spatial(
     else:
         new_coords = {}
 
-    # for param_name in new_coords:
-    #     vector_cube = vector_cube.assign_coords(
-    #         **{param_name: ("geometry", new_coords[param_name])}
-    #     )
-
+    # Order of geometries in geom column is the same as in input geometry sequence
+    # https://xvec.readthedocs.io/en/stable/generated/xarray.Dataset.xvec.zonal_stats.html
+    # therefore we can assign the properties as additional coordinates to geometry
+    # dimension in the same order
     vector_cube = vector_cube.assign_coords(
         **{param: ("geometry", new_coords[param]) for param in new_coords}
     )
