@@ -64,7 +64,11 @@ def mlm_class_random_forest(
                     "B11",
                     "B12",
                 ],
-                "input": {"shape": [12], "dim_order": ["band"], "data_type": "float16"},
+                "input": {
+                    "shape": [12],
+                    "dim_order": ["bands"],
+                    "data_type": "float16",
+                },
                 "value_scaling": None,
                 "resize_type": None,
                 "pre_processing_function": None,
@@ -238,7 +242,7 @@ def mlm_class_random_forest(
 
     mlm_item.validate()
 
-    rf_model = RfClassModel(mlm_item, "weights")
+    rf_model = RfClassModel(mlm_item, "weights", 0, 0)
     rf_model.set_model_filepath(model_path)
 
     return rf_model
