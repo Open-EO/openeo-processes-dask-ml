@@ -84,8 +84,6 @@ def aggregate_spatial(
     reducer: Callable,
     chunk_size: int = 2,
 ) -> VectorCube:
-    print("my own aggregate_spatial implementation")
-
     if isinstance(geometries, dict):
         # if its a dict, that means we are dealing with a geojson
         new_coords = _geojson_parse_geojson(geometries)
