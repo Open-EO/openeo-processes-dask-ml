@@ -2,9 +2,6 @@ import xarray as xr
 from openeo_processes_dask.process_implementations.exceptions import DimensionMissing
 
 from openeo_processes_dask_ml.process_implementations.data_model import MLModel
-from openeo_processes_dask_ml.process_implementations.utils.dim_utils import (
-    band_dim_options,
-)
 
 
 def ml_fit(model: MLModel, training_set: xr.DataArray, target: str):
