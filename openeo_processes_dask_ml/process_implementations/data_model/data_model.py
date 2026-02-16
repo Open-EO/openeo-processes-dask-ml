@@ -608,9 +608,19 @@ class MLModel(ABC):
 
         return removed_dims, added_dims
 
-    def get_chunk_output_shape(self, in_datacube: xr.DataArray) -> tuple[int, ...]:
+    def get_model_out_shape(self, in_datacube: xr.DataArray) -> list[int]:
         model_out_dims = self.get_datacube_output_dimension_mapping(in_datacube)
-        model_out_shape = self.output.result.shape
+        model_out_shape = [*self.output.result.shape]
+
+        # special case "batch"
+        if "batch" in model_out_dims:
+            batch_idx = model_out_dims.index("batch")
+            model_out_shape[batch_idx] = self.get_batch_size()
+
+        return model_out_shape
+
+    def get_chunk_output_shape(self, in_datacube: xr.DataArray) -> tuple[int, ...]:
+        model_out_shape = self.get_model_out_shape(in_datacube)
 
         input_dims_not_in_output = self.get_input_dims_not_in_output(in_datacube)
         dims_not_in_model = self.get_dims_not_in_model(in_datacube)
@@ -620,14 +630,6 @@ class MLModel(ABC):
             if band_dim in input_dims_not_in_output:
                 b_idx = input_dims_not_in_output.index(band_dim)
                 input_dims_not_in_output.pop(b_idx)
-
-        # special case "batch"
-        batch_dim_len = len(in_datacube.coords["batch"])
-        if "batch" in model_out_dims:
-            batch_idx = model_out_dims.index("batch")
-            model_out_shape[batch_idx] = self.get_batch_size()
-        else:
-            model_out_shape.insert(0, batch_dim_len)
 
         chunk_shape = (
             *model_out_shape,
@@ -1031,9 +1033,6 @@ class MLModel(ABC):
         # with "batch" being wherever it needs to be to satisfy model input
         input_dc = self.reshape_dc_for_input(reordered_dc)
 
-        # batch size to be used during inference
-        n_batches = self.get_batch_size()
-
         # get dimension indices of each batch: tuple[tuple[int, ], ...]
         batch_indices = tuple(self.get_index_subsets(reordered_dc))
 
@@ -1045,7 +1044,6 @@ class MLModel(ABC):
 
         output_dim_mapping = self.get_datacube_output_dimension_mapping(input_dc)
 
-        dims_removed, dims_added = self.compare_input_output_dimensions(input_dc)
         chunk_out_shape = self.get_chunk_output_shape(input_dc)
 
         out_dtype = self.output.result.data_type
@@ -1110,14 +1108,24 @@ class MLModel(ABC):
 
         n_dims_not_in_output = len(self.get_input_dims_not_in_output(datacube))
 
+        if "batch" in self.input.input.dim_order:
+            # start at 1 as "batch" is preserved
+            new_axis = range(
+                1, len(self.get_model_out_shape(input_dc)) + n_dims_not_in_output
+            )
+        else:
+            # 1 as "batch" is added as 1st dimension
+            # add 1 to account for batch not in input_dims
+            new_axis = range(
+                1, len(self.get_model_out_shape(input_dc)) + n_dims_not_in_output + 1
+            )
+
         # Reconstruct the datacube from the saved predictions
         model_out = saved_data.map_blocks(
             self.load_prediction,
             dtype=out_dtype_np,
             chunks=chunk_out_shape,
-            new_axis=range(
-                1, len(self.output.result.shape) + n_dims_not_in_output
-            ),  # start at 1 as "batch" is preserved
+            new_axis=new_axis,
             tmp_dir_output=tmp_dir_output,
             dependence_object=executed,
             n_dims_to_embed_model_output_in=n_dims_not_in_output,
