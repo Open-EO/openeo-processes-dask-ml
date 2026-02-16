@@ -136,6 +136,7 @@ class MLModel(ABC):
             "Please sepcify which one to use."
         )
 
+    @dask.delayed
     def _get_model(self) -> str:
         # model_asset = self._get_model_asset(asset_name)
         # url = self.model_asset_metadata.asset_href
