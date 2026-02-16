@@ -50,22 +50,9 @@ def mlm_class_random_forest(
         "mlm:input": [
             {
                 "name": "12-Band Sentinel 2",
-                "bands": [
-                    "B01",
-                    "B02",
-                    "B03",
-                    "B04",
-                    "B05",
-                    "B06",
-                    "B07",
-                    "B08",
-                    "B8A",
-                    "B09",
-                    "B11",
-                    "B12",
-                ],
+                "bands": ["a"],  # will be overwritten later
                 "input": {
-                    "shape": [12],
+                    "shape": [1],  # will be overwritten later
                     "dim_order": ["bands"],
                     "data_type": "float16",
                 },
@@ -80,8 +67,8 @@ def mlm_class_random_forest(
                 "tasks": ["classification"],
                 "result": {
                     "shape": [1],
-                    "dim_order": ["classification"],
-                    "data_type": "int16",
+                    "dim_order": ["classification"],  # will be overwritten later
+                    "data_type": "int8",
                 },
                 "post_processing_function": None,
             }
