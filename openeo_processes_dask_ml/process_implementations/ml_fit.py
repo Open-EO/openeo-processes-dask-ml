@@ -1,5 +1,6 @@
 import xarray as xr
 from openeo_processes_dask.process_implementations.exceptions import DimensionMissing
+from scipy.signal.windows import triang
 
 from openeo_processes_dask_ml.process_implementations.data_model import MLModel
 
@@ -12,7 +13,8 @@ def ml_fit(model: MLModel, training_set: xr.DataArray, target: str):
     # training_set has target as non-dimensional coordiantes for the
     # geometry-dimension
 
-    print("fit model")
+    # replace geometry dimension with target dimension, drop all other properties
+    cleaned = training_set.swap_dims({"geometry": target}).reset_coords(drop=True)
 
     if "geometry" not in training_set.dims:
         raise DimensionMissing("No geoemtry dimension in training_set")
@@ -27,4 +29,32 @@ def ml_fit(model: MLModel, training_set: xr.DataArray, target: str):
                 f"Dimension {inp_dim} required by the model is not in training_set"
             )
 
-    return model
+    # add bands metadata from datacube
+    if "band" in model.input.input.dim_order or "bands" in model.input.input.dim_order:
+        training_set_dims = training_set.dims
+
+        model_band_dim_name = (
+            "band" if "band" in model.input.input.dim_order else "bands"
+        )
+        model_band_index = model.input.input.dim_order.index(model_band_dim_name)
+
+        if "band" not in training_set_dims and "bands" not in training_set_dims:
+            raise DimensionMissing(
+                "Training Dataset does not contain a bands dimension"
+            )
+        band_dim_name = "band" if "band" in training_set_dims else "bands"
+
+        # set band names
+        band_names = [*training_set.coords[band_dim_name].data]  # make a copy
+
+        # set band length
+        model.input.bands = band_names
+        model.input.input.shape[model_band_index] = len(band_names)
+
+    model.output.result.dim_order = [target]
+    fitted_model = model.fit_model(cleaned)
+
+    # model is not fitted, so we can adjust the pretraind parameter
+    fitted_model.model_metadata.pretrained = True
+
+    return fitted_model
