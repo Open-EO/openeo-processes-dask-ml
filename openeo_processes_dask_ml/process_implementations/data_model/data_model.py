@@ -911,7 +911,7 @@ class MLModel(ABC):
 
     @dask.delayed
     def predict_in_dask_worker(
-        self, tmp_dir_input: str, tmp_dir_output: str, dependence_obj
+        self, tmp_dir_input: str, tmp_dir_output: str, model_path: str, dependence_obj
     ):
         """
         Make a prediction inside a dask worker
