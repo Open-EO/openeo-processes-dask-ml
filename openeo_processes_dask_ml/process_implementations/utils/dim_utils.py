@@ -181,6 +181,8 @@ def get_band_alternative_names(band_name: str) -> list[str]:
         ["hv"],
         ["vh"],
         ["vv"],
+        # other
+        ["ndvi"],
     ]
 
     for band_name_group in band_name_groups:
