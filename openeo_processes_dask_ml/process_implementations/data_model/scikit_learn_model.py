@@ -11,6 +11,7 @@ from pystac.extensions.classification import Classification
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.preprocessing import LabelEncoder
 
+from openeo_processes_dask_ml.model_execution import run_sklearn_model
 from openeo_processes_dask_ml.process_implementations.constants import MODEL_CACHE_DIR
 
 from .data_model import MLModel
@@ -25,7 +26,13 @@ class SkLearnModel(MLModel):
         preproc_expression,
         postproc_expression,
     ):
-        pass
+        run_sklearn_model.predict(
+            model_filepath,
+            tmp_dir_output,
+            files,
+            preproc_expression,
+            postproc_expression,
+        )
 
     def get_run_command(self, tmp_dir_input, tmp_dir_output) -> list[str]:
         pass
@@ -58,7 +65,7 @@ class RfClassModel(SkLearnModel):
         encoder = LabelEncoder()
         y_train_enc = encoder.fit_transform(y_train)
 
-        model.fit(X_train, y_train_enc)
+        model.fit(X_train.values, y_train_enc)
 
         self.output.classes = [
             Classification.create(i, name=name)
