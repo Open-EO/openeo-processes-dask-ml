@@ -924,6 +924,8 @@ class MLModel(ABC):
         files = in_dir_path.glob("*.npy")
         out_dir_path = Path(tmp_dir_output)
 
+        self._model_filepath = model_path
+
         self.make_predictions(
             model_path,
             files,
