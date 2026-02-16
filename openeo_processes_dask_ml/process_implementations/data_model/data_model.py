@@ -5,6 +5,7 @@ import subprocess
 from abc import ABC, abstractmethod
 from collections.abc import Iterable
 from pathlib import Path
+from typing import Self
 from uuid import uuid4
 
 import dask.delayed
@@ -1261,6 +1262,11 @@ class MLModel(ABC):
             )
 
         return post_cube_reorderd
+
+    def fit_model(self, training_set: xr.DataArray) -> Self:
+        raise NotImplementedError(
+            "Fitting model is not available for this type of model."
+        )
 
     @abstractmethod
     def make_predictions(
