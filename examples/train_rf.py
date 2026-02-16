@@ -30,18 +30,18 @@ process_graph = {
                 },
                 "temporal_extent": ["2022-01-01", "2022-02-28"],
                 "bands": [
-                    # "coastal",
-                    # "blue",
-                    # "green",
+                    "coastal",
+                    "blue",
+                    "green",
                     "red",
-                    # "rededge1",
-                    # "rededge2",
-                    # "rededge3",
+                    "rededge1",
+                    "rededge2",
+                    "rededge3",
                     "nir",
-                    # "nir08",
-                    # "nir09",
-                    # "swir16",
-                    # "swir22",
+                    "nir08",
+                    "nir09",
+                    "swir16",
+                    "swir22",
                 ],
                 "resolution": 10,
             },
@@ -100,4 +100,4 @@ process_graph = {
 }
 
 out = execute_graph_dict(process_graph)
-print(out)
+# print(out)
