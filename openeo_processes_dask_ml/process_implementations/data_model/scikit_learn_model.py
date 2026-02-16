@@ -47,8 +47,6 @@ class RfClassModel(SkLearnModel):
 
     @delayed
     def fit(self, training_set_df: ddf.DataFrame) -> str:
-        print("fitting model")
-
         model_path = self._model_filepath
 
         with open(model_path, "rb") as file:
@@ -69,8 +67,6 @@ class RfClassModel(SkLearnModel):
 
         with open(model_path, "wb") as file:
             pickle.dump(model, file)
-
-        print("fitted model")
 
         return model_path
 
