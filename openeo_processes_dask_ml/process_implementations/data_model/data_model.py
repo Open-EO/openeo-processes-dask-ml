@@ -886,7 +886,10 @@ class MLModel(ABC):
 
         num_input_dims = len(self.input.input.shape)
         num_datacube_dims = len(block.shape)
-        axes_to_squeeze = tuple(range(num_input_dims, num_datacube_dims))
+        if "batch" in self.input.input.dim_order:
+            axes_to_squeeze = tuple(range(num_input_dims, num_datacube_dims))
+        else:
+            axes_to_squeeze = (0, *tuple(range(num_input_dims + 1, num_datacube_dims)))
 
         if np.isnan(block).all():
             # empty block, do not write
