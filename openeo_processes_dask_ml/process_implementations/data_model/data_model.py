@@ -925,7 +925,7 @@ class MLModel(ABC):
         out_dir_path = Path(tmp_dir_output)
 
         self.make_predictions(
-            self._model_filepath,
+            model_path,
             files,
             out_dir_path,
             self.input.pre_processing_function,
@@ -935,7 +935,11 @@ class MLModel(ABC):
 
     @dask.delayed
     def predict_in_subprocess(
-        self, tmp_dir_input: str, tmp_dir_output: str, dependence_obj
+        self,
+        tmp_dir_input: str,
+        tmp_dir_output: str,
+        model_path: str,
+        dependence_obj,  # todo: use proper model path
     ):
         """
         Make predictions inside a new subprocess
@@ -944,6 +948,8 @@ class MLModel(ABC):
         :param dependence_obj: lazy dask object to wait for.
         :return: bool
         """
+        self._model_filepath = model_path
+
         subproc_list = self.get_run_command(tmp_dir_input, tmp_dir_output)
 
         if self.input.pre_processing_function is not None:
@@ -1092,11 +1098,11 @@ class MLModel(ABC):
         # Predict from the saved batches, save results to disk as .npy
         if MODEL_EXECUTION_MODE == "dask":
             executed = self.predict_in_dask_worker(
-                tmp_dir_input, tmp_dir_output, saved_data
+                tmp_dir_input, tmp_dir_output, self._model_filepath, saved_data
             )
         elif MODEL_EXECUTION_MODE == "subprocess":
             executed = self.predict_in_subprocess(
-                tmp_dir_input, tmp_dir_output, saved_data
+                tmp_dir_input, tmp_dir_output, self._model_filepath, saved_data
             )
         elif MODEL_EXECUTION_MODE == "slurm":
             executed = self.predict_in_slurm_job(
