@@ -939,11 +939,7 @@ class MLModel(ABC):
 
     @dask.delayed
     def predict_in_subprocess(
-        self,
-        tmp_dir_input: str,
-        tmp_dir_output: str,
-        model_path: str,
-        dependence_obj,  # todo: use proper model path
+        self, tmp_dir_input: str, tmp_dir_output: str, model_path: str, dependence_obj
     ):
         """
         Make predictions inside a new subprocess
