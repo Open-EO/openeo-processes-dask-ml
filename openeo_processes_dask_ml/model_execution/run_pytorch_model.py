@@ -93,7 +93,7 @@ def start_prediction_processes(
                 f"Not enough cuda devices: Requested {devices_available} "
                 f"but {n_cuda_devices} were requested."
             )
-    logger.error(
+    logger.info(
         f"CUDA Devices: {n_cuda_devices}",
     )
     processes = []
@@ -132,4 +132,3 @@ if __name__ == "__main__":
         args.postprocessing_function,
         args.n_cuda_devices,
     )
-    print(ex)
