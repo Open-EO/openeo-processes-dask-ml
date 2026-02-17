@@ -7,17 +7,12 @@ import numpy as np
 import torch
 
 from openeo_processes_dask_ml.model_execution._argparser import get_parser
+from openeo_processes_dask_ml.model_execution._file_chunk import get_file_chunk
 from openeo_processes_dask_ml.process_implementations.utils.proc_expression_utils import (
     run_expression,
 )
 
 logger = logging.getLogger(__name__)
-
-
-def get_file_chunk(tmp_dir_input: Path, start_chunk: int, num_chunks: int):
-    all_files = list(tmp_dir_input.glob("*.npy"))
-    file_chunk = all_files[start_chunk::num_chunks]
-    return file_chunk
 
 
 def load_and_preprocess(file_path: Path, preproc_expression) -> torch.Tensor:
