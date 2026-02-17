@@ -28,8 +28,8 @@ def get_parser() -> argparse.ArgumentParser:
     )
 
     parser.add_argument(
-        "torchscript_path",
-        help="Path to the torchscript model which will be used for predcition",
+        "model_filepath",
+        help="Path to the model filepath which will be used for predcition",
         type=existing_file,
     )
     parser.add_argument(

@@ -125,7 +125,7 @@ if __name__ == "__main__":
     args = get_parser().parse_args()
 
     ex = start_prediction_processes(
-        args.torchscript_path,
+        args.model_filepath,
         args.input_dir,
         args.output_dir,
         args.preprocessing_function,
