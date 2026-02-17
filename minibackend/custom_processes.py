@@ -8,8 +8,11 @@ logger = logging.getLogger(__name__)
 
 # # I/O processes aren't generic (yet), therefore have to custom define those.
 def load_collection(
-    id, spatial_extent, temporal_extent, bands=[], properties={}, **kwargs
+    id, spatial_extent, temporal_extent, bands=None, properties=None, **kwargs
 ):
+    bands = [] if bands is None else bands
+    properties = {} if properties is None else properties
+
     msg = (
         "Process 'load_collection' not implemented. Returning random numbers instead. "
         "Use process 'load_stac' for real observations instead."
