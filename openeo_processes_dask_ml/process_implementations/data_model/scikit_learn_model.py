@@ -1,5 +1,6 @@
 import copy
 import pickle
+import sys
 from collections.abc import Iterable
 from pathlib import Path
 from typing import Self
@@ -35,7 +36,14 @@ class SkLearnModel(MLModel):
         )
 
     def get_run_command(self, tmp_dir_input, tmp_dir_output) -> list[str]:
-        pass
+        run_command = [
+            sys.executable,
+            run_sklearn_model.__file__,
+            self._model_filepath,
+            tmp_dir_input,
+            tmp_dir_output,
+        ]
+        return run_command
 
 
 class RfClassModel(SkLearnModel):
