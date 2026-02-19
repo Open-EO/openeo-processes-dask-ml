@@ -3,47 +3,56 @@ import os
 import uuid
 import zipfile
 from pathlib import Path
+from typing import Optional
 
 import dask.array as da
 import numpy as np
 import pandas as pd
+import pystac_client
 import xarray as xr
+
+from opd_ml_dev_utils.get_datacube import load_stac, load_stac_with_cache
 
 logger = logging.getLogger(__name__)
 
+from openeo_pg_parser_networkx.pg_schema import BoundingBox, TemporalInterval
 
 RESULT_DIR = "./results/"
 
 
+def _get_stac_collections(stac_url: str):
+    client = pystac_client.Client.open(stac_url)
+    colls = client.get_collections()
+    col_names = [c.id for c in colls]
+    return col_names
+
+
 # # I/O processes aren't generic (yet), therefore have to custom define those.
 def load_collection(
-    id, spatial_extent, temporal_extent, bands=None, properties=None, **kwargs
+    id: str,
+    spatial_extent: BoundingBox,
+    temporal_extent: TemporalInterval,
+    bands: Optional[list[str]] = None,
+    properties=None,
+    **kwargs,
 ):
-    bands = [] if bands is None else bands
-    properties = {} if properties is None else properties
+    aws_stac_v1_url = "https://earth-search.aws.element84.com/v1"
 
-    msg = (
-        "Process 'load_collection' not implemented. Returning random numbers instead. "
-        "Use process 'load_stac' for real observations instead."
+    if id in _get_stac_collections(aws_stac_v1_url):
+        use_url = aws_stac_v1_url
+    else:
+        raise ValueError(f"Collection with ID {id} not available")
+
+    collection_url = use_url + f"/collections/{id}"
+
+    dc = load_stac_with_cache(
+        collection_url,
+        spatial_extent,
+        temporal_extent,
+        bands,
     )
-    logger.warning(msg)
 
-    n_time = 10
-    n_bands = 12
-    n_x = 1000
-    n_y = 1000
-
-    x = xr.DataArray(
-        da.random.random((n_time, n_bands, n_x, n_y)),
-        dims=["time", "band", "x", "y"],
-        coords={
-            "time": ["t_" + str(t) for t in range(n_time)],
-            "band": ["B" + str(b) for b in range(1, n_bands + 1)],
-            "x": range(n_x),
-            "y": range(n_y),
-        },
-    )
-    return x
+    return dc
 
 
 def _save_netcdf(data: xr.DataArray, filename: str) -> bool:
