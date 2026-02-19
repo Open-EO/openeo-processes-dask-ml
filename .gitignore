@@ -5,6 +5,7 @@
 pystac
 cache
 tmp
+results
 tests/test_tmp
 models
 
