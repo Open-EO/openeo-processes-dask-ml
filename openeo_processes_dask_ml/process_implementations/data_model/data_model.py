@@ -2,6 +2,7 @@ import itertools
 import logging
 import os.path
 import subprocess
+import uuid
 from abc import ABC, abstractmethod
 from collections.abc import Iterable
 from pathlib import Path
@@ -1264,6 +1265,37 @@ class MLModel(ABC):
         raise NotImplementedError(
             "Fitting model is not available for this type of model."
         )
+
+    @dask.delayed
+    def save_to_disk(self, model_name: str, out_dir: str, model_filepath: str) -> bool:
+        os.makedirs(out_dir, exist_ok=True)
+        out_dir = Path(out_dir)
+        model_filepath = Path(model_filepath)
+
+        out_model_filepath = out_dir / model_filepath.name
+
+        # move model file from cache folder to result folder
+        os.rename(model_filepath, out_model_filepath)
+
+        out_metadata_filepath = out_model_filepath.with_suffix(".json")
+
+        # write stac-mlm file
+        pystac.write_file(self._stac_item, False, str(out_metadata_filepath))
+
+        return True
+
+    def save_model(self, model_name: str) -> bool:
+        MODEL_RESULT_DIR = "./results/"
+        u_id = str(uuid.uuid4())
+        model_output_dir = MODEL_RESULT_DIR + u_id
+
+        self.model_metadata.mlm_name = model_name
+
+        saved = self.save_to_disk(model_name, model_output_dir, self._model_filepath)
+
+        # todo: handle href
+
+        return saved
 
     @abstractmethod
     def make_predictions(
