@@ -54,6 +54,7 @@ def run_openeo_ml_predict(model_url: str):
                     "data": {"from_node": "load_data"},
                     "model": {"from_node": "load_model"},
                 },
+                "result": True,
             },
         },
         "parameters": [],
