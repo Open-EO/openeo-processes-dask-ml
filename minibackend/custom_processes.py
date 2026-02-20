@@ -137,6 +137,9 @@ def _save_zarr(data: xr.DataArray, filename: str):
 def save_result(data: xr.DataArray, format: str, options=None):
     # No generic implementation available, so need to implement locally!
 
+    print("Result Datacube")
+    print(data)
+
     format = format.lower()
 
     result_id = uuid.uuid4()
