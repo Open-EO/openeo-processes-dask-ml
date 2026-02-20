@@ -6,7 +6,7 @@ from openeo_processes_dask.process_implementations import (
 
 def array_interpolate_linear(data: xr.DataArray):
     time_dim = data.openeo.temporal_dims[0]
-
+    data = data.chunk({time_dim: -1})
     interp_data = data.interpolate_na(
         dim=time_dim, method="linear", use_coordinate=True
     )
