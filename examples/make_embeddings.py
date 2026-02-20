@@ -64,8 +64,8 @@ def run_openeo_ml_predict(model_url: str):
         "parameters": [],
     }
 
-    out_datacube = execute_graph_dict(process_graph)  # output datacube is lazy
-    # out_datacube = out_datacube.compute()  # compute the datacube
+    out = execute_graph_dict(process_graph)  # output datacube is lazy
+    out = out.compute()  # compute the datacube
     print("Finnished!")
 
 
