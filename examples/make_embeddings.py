@@ -55,18 +55,15 @@ def run_openeo_ml_predict(model_url: str):
                     "model": {"from_node": "load_model"},
                 },
             },
-            "save": {
-                "process_id": "save_result",
-                "arguments": {"data": {"from_node": "predict"}, "format": "Zarr"},
-                "result": True,
-            },
         },
         "parameters": [],
     }
 
     out_datacube = execute_graph_dict(process_graph)  # output datacube is lazy
-    # out_datacube = out_datacube.compute()  # compute the datacube
+    out_datacube = out_datacube.compute()  # compute the datacube
     print(out_datacube)
+
+    out_datacube.to_zarr("./results/embeddings.zarr")
 
 
 if __name__ == "__main__":
