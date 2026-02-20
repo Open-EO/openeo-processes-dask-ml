@@ -52,6 +52,8 @@ def load_collection(
         bands,
     )
 
+    dc = dc.chunk({"time": 1, "bands": -1, "x": 200, "y": 200})
+
     return dc
 
 
