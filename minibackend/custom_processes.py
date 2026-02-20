@@ -127,6 +127,11 @@ def _save_geotiff(data: xr.DataArray, filename: str):
     return filename
 
 
+def _save_zarr(data: xr.DataArray, filename: str):
+    data.to_zarr(filename)
+    return filename
+
+
 def save_result(data: xr.DataArray, format: str, options=None):
     # No generic implementation available, so need to implement locally!
 
@@ -144,6 +149,10 @@ def save_result(data: xr.DataArray, format: str, options=None):
     elif format == "gtiff":
         filename = out_dir + "result.gtiff"
         saved = _save_geotiff(data, filename)
+
+    elif format == "zarr":
+        filename = out_dir + "result.zarr"
+        saved = _save_zarr(data, filename)
 
     else:
         raise NotImplementedError(f"Format {format} not supported")
