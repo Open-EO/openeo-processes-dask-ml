@@ -57,7 +57,7 @@ def predict(
     preproc_expression=None,
     postproc_expression=None,
 ):
-    device = f"cuda:{cuda_id}"
+    device = f"cuda:{cuda_id}" if torch.cuda.is_available() and cuda_id > -1 else "cpu"
     model = torch.jit.load(model_path).to(device).eval()
 
     for file_path in file_chunk:
@@ -96,25 +96,38 @@ def start_prediction_processes(
     logger.info(
         f"CUDA Devices: {n_cuda_devices}",
     )
-    processes = []
-    for cuda_id in range(n_cuda_devices):
-        file_chunk = get_file_chunk(tmp_dir_input, cuda_id, n_cuda_devices)
-        p = Process(
-            target=predict,
-            args=(
-                cuda_id,
-                model_path,
-                tmp_dir_output,
-                file_chunk,
-                preproc_expression,
-                postproc_expression,
-            ),
-        )
-        p.start()
-        processes.append(p)
 
-    for p in processes:
-        p.join()
+    if n_cuda_devices == 0:
+        file_chunk = get_file_chunk(tmp_dir_input, 0, 1)
+        predict(
+            -1,
+            model_path,
+            tmp_dir_output,
+            file_chunk,
+            preproc_expression,
+            postproc_expression,
+        )
+
+    else:
+        processes = []
+        for cuda_id in range(n_cuda_devices):
+            file_chunk = get_file_chunk(tmp_dir_input, cuda_id, n_cuda_devices)
+            p = Process(
+                target=predict,
+                args=(
+                    cuda_id,
+                    model_path,
+                    tmp_dir_output,
+                    file_chunk,
+                    preproc_expression,
+                    postproc_expression,
+                ),
+            )
+            p.start()
+            processes.append(p)
+
+        for p in processes:
+            p.join()
 
     return True
 
