@@ -130,8 +130,7 @@ def _save_geotiff(data: xr.DataArray, filename: str):
 
 
 def _save_zarr(data: xr.DataArray, filename: str):
-    data.to_zarr(filename)
-    return filename
+    return data.to_zarr(filename, compute=False)
 
 
 def save_result(data: xr.DataArray, format: str, options=None):
