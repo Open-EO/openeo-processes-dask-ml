@@ -10,9 +10,7 @@ if Path.cwd().resolve().name != "openeo-processes-dask-ml":
 
 from minibackend import execute_graph_dict
 
-# mlm_class_random_forest("sqrt", 50)
-
-with open("examples/training_data/train_data_small.json") as file:
+with open("examples/training_data/train_data.json") as file:
     geoms = json.load(file)
 
 
@@ -139,18 +137,18 @@ process_graph = {
             "data": {"from_node": "arrayinterpolatelinear1"},
             "model": {"from_node": "mlfit1"},
         },
+        "result": True,
     },
     "saveresult1": {
         "process_id": "save_result",
         "arguments": {
             "data": {"from_node": "mlpredict1"},
-            "format": "GTiff",
+            "format": "Zarr",
             "options": {},
         },
-        "result": True,
+        # "result": True,
     },
 }
-
 
 out = execute_graph_dict(process_graph)
 
