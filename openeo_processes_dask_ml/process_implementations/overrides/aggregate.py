@@ -1,15 +1,30 @@
+"""
+We overwrite the implementation of openeo-processes-dask aggregate_spatial
+implementation for two reasons:
+1) usage of xvec.zonal with method=iterate explodes RAM usage used on many polygons.
+   Solution: Use method=rasterize
+2) xvec implementation of of zonal statistic with method rasteirze seems buggy:
+   Solution: use dtype=float32 (already fixed in later version on GH)
+"""
+
+import gc
+import logging
+from collections.abc import Hashable, Sequence
 from typing import Callable
 
 import dask_geopandas as d_gpd
 import geopandas as gpd
-from openeo_processes_dask.process_implementations.cubes.aggregate import (
-    aggregate_spatial as aggregate_spatial_original,
-)
+import numpy as np
+import pandas as pd
+import shapely
+import xarray as xr
 from openeo_processes_dask.process_implementations.data_model import (
     RasterCube,
     VectorCube,
 )
 from xarray import Dataset
+
+logger = logging.getLogger(__name__)
 
 
 def _merge_dicts(d1: dict[str, list], d2: dict[str, int | float | str]):
@@ -78,15 +93,128 @@ def _geojson_parse_geojson(geometries: dict) -> dict[str, list]:
         return {}
 
 
+def _agg_rasterize(groups, stats, **kwargs):
+    if isinstance(stats, str):
+        return getattr(groups, stats)(**kwargs)
+    return groups.reduce(stats, keep_attrs=True, **kwargs)
+
+
+def _zonal_stats_rasterize_new(
+    acc,
+    geometry: Sequence[shapely.Geometry],
+    x_coords: Hashable,
+    y_coords: Hashable,
+    stats: str | Callable | Sequence[str | Callable | tuple] = "mean",
+    name: str = "geometry",
+    all_touched: bool = False,
+    **kwargs,
+):
+    try:
+        import rasterio
+        import rioxarray  # noqa: F401
+    except ImportError as err:
+        raise ImportError(
+            "The rioxarray package is required for `zonal_stats()`. "
+            "You can install it using 'conda install -c conda-forge rioxarray' or "
+            "'pip install rioxarray'."
+        ) from err
+
+    if hasattr(geometry, "crs"):
+        crs = geometry.crs
+    else:
+        crs = None
+
+    transform = acc._obj.rio.transform()
+
+    labels = rasterio.features.rasterize(
+        zip(geometry, range(len(geometry))),
+        out_shape=(
+            acc._obj[y_coords].shape[0],
+            acc._obj[x_coords].shape[0],
+        ),
+        transform=transform,
+        fill=np.nan,
+        all_touched=all_touched,
+        dtype=np.float32,
+    )
+    groups = acc._obj.groupby(xr.DataArray(labels, dims=(y_coords, x_coords)))
+
+    if pd.api.types.is_list_like(stats):
+        agg = {}
+        for stat in stats:
+            if isinstance(stat, str):
+                agg[stat] = _agg_rasterize(groups, stat, **kwargs)
+            elif callable(stat):
+                agg[stat.__name__] = _agg_rasterize(groups, stat, **kwargs)
+            elif isinstance(stat, tuple):
+                kws = stat[2] if len(stat) == 3 else {}
+                agg[stat[0]] = _agg_rasterize(groups, stat[1], **kws)
+            else:
+                raise ValueError(f"{stat} is not a valid aggregation.")
+
+        agg = xr.concat(
+            agg.values(),
+            dim=xr.DataArray(
+                list(agg.keys()), name="zonal_statistics", dims="zonal_statistics"
+            ),
+        )
+    elif isinstance(stats, str) or callable(stats):
+        agg = _agg_rasterize(groups, stats, **kwargs)
+    else:
+        raise ValueError(f"{stats} is not a valid aggregation.")
+
+    vec_cube = (
+        agg.reindex(group=range(len(geometry)))
+        .assign_coords(group=geometry)
+        .rename(group=name)
+    ).xvec.set_geom_indexes(name, crs=crs)
+
+    del groups
+    gc.collect()
+
+    return vec_cube
+
+
 def aggregate_spatial(
     data: RasterCube,
     geometries,
     reducer: Callable,
     chunk_size: int = 2,
 ) -> VectorCube:
+    # monkey-patch xvec.zonal._zonal_stats_rasterize
+    from unittest.mock import patch
+
+    DEFAULT_CRS = "EPSG:4326"
+    x_dim = data.openeo.x_dim
+    y_dim = data.openeo.y_dim
+
     if isinstance(geometries, dict):
         # if its a dict, that means we are dealing with a geojson
         new_coords = _geojson_parse_geojson(geometries)
+
+        if "features" in geometries:
+            for feature in geometries["features"]:
+                if "properties" not in feature:
+                    feature["properties"] = {}
+                elif feature["properties"] is None:
+                    feature["properties"] = {}
+            if isinstance(geometries.get("crs", {}), dict):
+                DEFAULT_CRS = (
+                    geometries.get("crs", {})
+                    .get("properties", {})
+                    .get("name", DEFAULT_CRS)
+                )
+            else:
+                DEFAULT_CRS = int(geometries.get("crs", {}))
+            logger.info(f"CRS in geometries: {DEFAULT_CRS}.")
+
+            if "type" in geometries and geometries["type"] == "FeatureCollection":
+                gdf = gpd.GeoDataFrame.from_features(geometries, crs=DEFAULT_CRS)
+            elif "type" in geometries and geometries["type"] in ["Polygon"]:
+                polygon = shapely.geometry.Polygon(geometries["coordinates"][0])
+                gdf = gpd.GeoDataFrame(geometry=[polygon])
+                gdf.crs = DEFAULT_CRS
+
     elif isinstance(geometries, gpd.GeoDataFrame):
         raise NotImplementedError(
             "Not Implemented, Provide geometries directly as geojson."
@@ -104,7 +232,20 @@ def aggregate_spatial(
             "Not Implemented, Provide geometries directly as geojson."
         )
 
-    vector_cube = aggregate_spatial_original(data, geometries, reducer, chunk_size)
+    gdf = gdf.to_crs(data.rio.crs)
+    geometries = gdf.geometry.values
+
+    positional_parameters = {"data": 0}
+
+    with patch("xvec.accessor._zonal_stats_rasterize", new=_zonal_stats_rasterize_new):
+        vec_cube = data.xvec.zonal_stats(
+            geometries,
+            x_coords=x_dim,
+            y_coords=y_dim,
+            method="rasterize",
+            stats=reducer,
+            positional_parameters=positional_parameters,
+        )
 
     # we will add geometry properties as non-dimensional coordinates to the vector data cube
 
@@ -112,7 +253,7 @@ def aggregate_spatial(
     # https://xvec.readthedocs.io/en/stable/generated/xarray.Dataset.xvec.zonal_stats.html
     # therefore we can assign the properties as additional coordinates to geometry
     # dimension in the same order
-    vector_cube = vector_cube.assign_coords(
+    vector_cube = vec_cube.assign_coords(
         **{param: ("geometry", new_coords[param]) for param in new_coords}
     )
 
