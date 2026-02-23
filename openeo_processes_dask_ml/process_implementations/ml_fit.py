@@ -57,4 +57,7 @@ def ml_fit(model: MLModel, training_set: xr.DataArray, target: str):
     # model is not fitted, so we can adjust the pretraind parameter
     fitted_model.model_metadata.pretrained = True
 
+    # todo: update eo:bands in asset metadata
+    # todo: uddate bbox and datetime (start-end) with values from training-set
+
     return fitted_model
