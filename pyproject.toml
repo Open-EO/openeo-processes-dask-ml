@@ -1,47 +1,54 @@
-[tool.poetry]
+[project]
 name = "openeo-processes-dask-ml"
 version = "0.1.0"
 description = "Implementation for openEO ML processes, built to extend openeo-processes-dask"
-authors = ["Jonas Hurst <jhurst@uni-muenster.de>"]
 readme = "README.md"
+requires-python = ">=3.11,<3.12"
 
-[tool.poetry.dependencies]
-python = ">=3.11,<3.12"
-openeo-processes-dask = {extras = ["implementations"], version = "^2025.7.1"}
-boto3 = "^1.38.14"
-stackstac = "^0.5.1"
-# remove this once mlm-extension is merged into upstream pystac, and openeo-processes-dask allows this as depdendency
-pystac = {git = "https://github.com/jonas-hurst/pystac", rev = "v1.11OWN"}
-brotli = "^1.2.0"
-torch = {version = "2.7.0", optional = true}
-onnx = {version = "^1.18.0", optional = true}
-onnxruntime-gpu = {version = "^1.22.0", optional = true}
-scikit-learn = {version = "^1.8.0", optional = true}
+authors = [
+    { name = "Jonas Hurst", email = "jhurst@uni-muenster.de" }
+]
 
+dependencies = [
+    "openeo-processes-dask[implementations]>=2025.10.1",
+    "boto3>=1.38.14",
+    "stackstac>=0.5.1",
+    "pystac @ git+https://github.com/jonas-hurst/pystac@v1.11OWN",
+    "brotli>=1.2.0"
+]
 
-[tool.poetry.group.dev.dependencies]
-pytest = "^8.3.5"
-pytest-mock = "^3.14.0"
-pytest-recording = "^0.13.4"
-matplotlib = "^3.10.3"
-black = "^25.1.0"
-pre-commit = "^4.2.0"
-notebook = "^7.4.4"
-graphviz = "^0.21"
-dask-labextension = "^7.0.0"
-dask-jobqueue = "^0.9.0"
-pytest-cov = "^7.0.0"
+[project.optional-dependencies]
+torch = [
+    "torch==2.7.0"
+]
 
-[tool.poetry.extras]
-torch = ["torch"]
-onnx = ["onnx", "onnxruntime-gpu"]
-scikit-learn = ["scikit-learn"]
+onnx = [
+    "onnx>=1.18.0",
+    "onnxruntime-gpu>=1.22.0"
+]
+
+scikit-learn = [
+    "scikit-learn>=1.8.0"
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.3.5,<9.0.0",
+    "pytest-mock>=3.14.0,<4.0.0",
+    "pytest-recording>=0.13.4,<0.14.0",
+    "matplotlib>=3.10.3,<4.0.0",
+    "black>=25.1.0,<26.0.0",
+    "pre-commit>=4.2.0,<5.0.0",
+    "notebook>=7.4.4,<8.0.0",
+    "graphviz>=0.21,<1.0.0",
+    "dask-labextension>=7.0.0,<8.0.0",
+    "dask-jobqueue>=0.9.0,<0.10.0",
+    "pytest-cov>=7.0.0,<8.0.0"
+]
 
 [build-system]
 requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
 
 [tool.pytest.ini_options]
-#filterwarnings = ["error"]
-#addopts = "--block-network --record-mode=none"
 addopts = "--block-network --record-mode=new_episodes --cov=openeo_processes_dask_ml --cov=minibackend --cov-report=html"
