@@ -16,6 +16,9 @@ def url_to_dir_string(s: str, preserve_file_extension: bool = False) -> str:
     else:
         prefix = ""
 
+    if s == "":
+        s = "model"
+
     sanitized_name = re.sub(r'[\\/:*?"<>|$&;,=#.\s]', "_", s)
 
     # Remove leading/trailing spaces and dots introduced by replacement if any

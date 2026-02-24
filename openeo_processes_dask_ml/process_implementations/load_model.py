@@ -16,13 +16,13 @@ try:
     from .data_model import ONNXModel
 
     AVAILABLE_ML_FRAMEWORKS.append("ONNX")
-except ModuleNotFoundError:
+except ImportError:
     pass
 try:
     from .data_model import TorchModel
 
     AVAILABLE_ML_FRAMEWORKS.append("PyTorch")
-except ModuleNotFoundError:
+except ImportError:
     pass
 
 
