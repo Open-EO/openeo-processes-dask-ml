@@ -8,7 +8,7 @@ try:
     from openeo_processes_dask_ml.process_implementations.data_model import RfClassModel
 
     AVAILABLE_ML_FRAMEWORKS.append("scikit-learn")
-except ModuleNotFoundError:
+except ImportError:
     pass
 
 MODEL_NOT_CREATED_YET = "lol"
@@ -16,7 +16,7 @@ MODEL_NOT_CREATED_YET = "lol"
 
 def mlm_class_random_forest(
     max_variables: int | str, num_trees: int = 100, seed: int | None = None
-) -> RfClassModel:
+) -> "RfClassModel":
     model_id = f"class_rf_{str(uuid4())}"
 
     if "scikit-learn" not in AVAILABLE_ML_FRAMEWORKS:
