@@ -37,7 +37,7 @@ from openeo_processes_dask_ml.process_implementations.utils.model_cache_utils im
             "http___example_com_with_angle_brackets",
         ),  # Angle brackets
         ("just_a_valid_name", "just_a_valid_name"),  # Already valid name
-        ("", "sanitized_dir"),  # Empty string
+        ("", "model"),  # Empty string
         (
             '?*<>|"',
             "sanitized_dir",
