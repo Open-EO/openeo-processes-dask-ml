@@ -1021,7 +1021,9 @@ class MLModel(ABC):
 
     def run_model(self, datacube: xr.DataArray) -> xr.DataArray:
         """
-        Reshape datacube according to ml specification, make a prediction, then re-order predicted output in a new datacube
+        Reshape datacube according to ml specification, make a prediction, then re-order predicted output in a new datacube.
+        This is a very generic approach that works but has its limitations, i.e. requires re-chunking (many small chunks are infeasable!!!)
+        Framework-specific subclasses are encouraged to overwrite this class and provide a more robust implementation
         :param datacube: Datacube to predict on
         :return: Datacube holding predicted values
         """
