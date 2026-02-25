@@ -27,7 +27,7 @@ process_graph = {
                 "north": 48.047242,
                 "crs": 4326,
             },
-            "temporal_extent": ["2017-03-01", "2017-05-30"],
+            "temporal_extent": ["2017-03-01T00:00:00Z", "2017-07-31T23:59:59Z"],
         },
     },
     "aggregatetemporalperiod1": {
@@ -66,7 +66,7 @@ process_graph = {
     "loadcollection2": {
         "process_id": "load_collection",
         "arguments": {
-            "bands": ["green", "blue", "red", "nir"],
+            "bands": ["blue", "green", "red", "nir"],
             "id": "sentinel-2-l2a",
             "spatial_extent": {
                 "west": -4.026661,
@@ -75,7 +75,7 @@ process_graph = {
                 "north": 48.300371,
                 "crs": 4326,
             },
-            "temporal_extent": ["2017-03-01", "2017-05-30"],
+            "temporal_extent": ["2017-03-01T00:00:00Z", "2017-07-31T23:59:59Z"],
         },
     },
     "aggregatetemporalperiod2": {
@@ -137,21 +137,18 @@ process_graph = {
             "data": {"from_node": "arrayinterpolatelinear1"},
             "model": {"from_node": "mlfit1"},
         },
-        "result": True,
     },
     "saveresult1": {
         "process_id": "save_result",
         "arguments": {
             "data": {"from_node": "mlpredict1"},
-            "format": "Zarr",
+            "format": "GTiff",
             "options": {},
         },
-        # "result": True,
+        "result": True,
     },
 }
 
 out = execute_graph_dict(process_graph)
-
-# out = out.compute()
 
 print(out)
