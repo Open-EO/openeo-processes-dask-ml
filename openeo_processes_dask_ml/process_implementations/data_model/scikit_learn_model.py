@@ -5,7 +5,9 @@ from collections.abc import Iterable
 from pathlib import Path
 from typing import Self
 
+import numpy as np
 import xarray as xr
+from dask import array as da
 from dask import dataframe as ddf
 from dask import delayed
 from pystac.extensions.classification import Classification
@@ -44,6 +46,75 @@ class SkLearnModel(MLModel):
             tmp_dir_output,
         ]
         return run_command
+
+    def predict_func(self, arr, model_path: str):
+        with open(model_path, "rb") as file:
+            model = pickle.load(file)
+
+        # arr shape: (..., bands)
+        orig_shape = arr.shape[:-1]
+        n_features = arr.shape[-1]
+
+        arr2d = arr.reshape(-1, n_features)
+
+        pred = model.predict(arr2d)
+
+        return pred.reshape(orig_shape)
+
+    def run_model(self, datacube: xr.DataArray) -> xr.DataArray:
+        # !!!!
+        # At the moment only works for models that take in a single dim (e.g. bands)
+        if len(self.input.input.dim_order) > 1:
+            raise NotImplementedError(
+                "this model is not supported as it takes more than one dim as input"
+            )
+
+        if len(self.output.result.dim_order) > 1:
+            raise NotImplementedError(
+                "this model is not supported as it outputs more than 1 dimension"
+            )
+
+        if self.output.result.shape[0] != 1:
+            raise NotImplementedError(
+                f"this model is not supported a its output length is "
+                f"{self.output.result.shape[0]} "
+                f" but only length 1 is supported."
+            )
+
+        # first check if all dims required by model are in data cube
+        self.check_datacube_dimensions(datacube, ignore_batch_dim=True)
+
+        if self._model_filepath is None:
+            self._model_filepath = self._get_model()
+
+        # resolve delayed model_filepath: Turn delayed string into 0-d dask array
+        model_path_da = da.from_delayed(self._model_filepath, shape=(), dtype=object)
+
+        input_dim_mapping = self.get_datacube_dimension_mapping(datacube)
+
+        pre_datacube = self.preprocess_datacube(datacube)
+
+        # dimensions: [*dims-in-model, *dims-not-in-model]
+        if input_dim_mapping[0][1] != 0:
+            pre_datacube = self.reorder_dc_dims_for_model_input(pre_datacube)
+
+        pre_datacube_chunked = pre_datacube.chunk({input_dim_mapping[0][0]: -1})
+
+        result = xr.apply_ufunc(
+            self.predict_func,
+            pre_datacube_chunked,
+            model_path_da,
+            input_core_dims=[[input_dim_mapping[0][0]], []],
+            output_core_dims=[[]],
+            # kwargs={"model_path": self._model_filepath},
+            vectorize=False,
+            dask="parallelized",
+            output_dtypes=[self.output.result.data_type],
+        )
+
+        result = result.expand_dims(self.output.result.dim_order[0])
+
+        return result
 
 
 class RfClassModel(SkLearnModel):
