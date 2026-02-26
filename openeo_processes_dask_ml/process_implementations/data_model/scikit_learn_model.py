@@ -98,11 +98,11 @@ class SkLearnModel(MLModel):
         if input_dim_mapping[0][1] != 0:
             pre_datacube = self.reorder_dc_dims_for_model_input(pre_datacube)
 
-        pre_datacube_chunked = pre_datacube.chunk({input_dim_mapping[0][0]: -1})
+        pre_datacube = pre_datacube.chunk({input_dim_mapping[0][0]: -1})
 
         result = xr.apply_ufunc(
             self.predict_func,
-            pre_datacube_chunked,
+            pre_datacube,
             model_path_da,
             input_core_dims=[[input_dim_mapping[0][0]], []],
             output_core_dims=[[]],
