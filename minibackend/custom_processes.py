@@ -27,29 +27,60 @@ def _get_stac_collections(stac_url: str):
     return col_names
 
 
+def _resolve_properties(data: dict) -> dict:
+    # converts {"lte1": {"process_id": "lte", "arguments": {"x": {"from_parameter": "value"}, "y": 50}, "result": True}}
+    # into {"lte": 50}
+
+    # We expect only one top-level key based on your example
+    for key, body in data.items():
+        process_id = body.get("process_id")
+
+        # Validate the operation type
+        if process_id not in {"lt", "lte", "gt", "gte"}:
+            raise NotImplementedError(f"Operation '{process_id}' is not supported.")
+
+        # Extract the 'y' value from arguments
+        # Using .get() and secondary .get() for safety
+        arguments = body.get("arguments", {})
+        value = arguments.get("y")
+
+        return {process_id: value}
+
+    return {}
+
+
 # # I/O processes aren't generic (yet), therefore have to custom define those.
 def load_collection(
     id: str,
     spatial_extent: BoundingBox,
     temporal_extent: TemporalInterval,
     bands: Optional[list[str]] = None,
-    properties=None,
+    properties: Optional[dict] = None,
     **kwargs,
 ):
     aws_stac_v1_url = "https://earth-search.aws.element84.com/v1"
+    cdse_stac_v1_url = "https://stac.dataspace.copernicus.eu/v1"
+    plan_comp_url = "https://planetarycomputer.microsoft.com/api/stac/v1"
 
-    if id in _get_stac_collections(aws_stac_v1_url):
-        use_url = aws_stac_v1_url
+    url = plan_comp_url
+
+    if id in _get_stac_collections(url):
+        use_url = url
     else:
         raise ValueError(f"Collection with ID {id} not available")
 
     collection_url = use_url + f"/collections/{id}"
 
+    if properties:
+        resolved_properties = {
+            prop: _resolve_properties(properties[prop]["process_graph"])
+            for prop in properties
+        }
+    else:
+        resolved_properties = {}
+
     dc = load_stac_with_cache(
-        collection_url,
-        spatial_extent,
-        temporal_extent,
-        bands,
+        collection_url, spatial_extent, temporal_extent, bands, resolved_properties
     )
 
     dc = dc.chunk({"time": 1, "bands": -1, "x": 200, "y": 200})
