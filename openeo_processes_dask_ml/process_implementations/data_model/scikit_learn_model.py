@@ -1,4 +1,5 @@
 import copy
+import math
 import pickle
 import sys
 from collections.abc import Iterable
@@ -47,13 +48,14 @@ class SkLearnModel(MLModel):
         ]
         return run_command
 
-    def predict_func(self, arr, model_path: str):
+    def predict_func(self, arr: np.ndarray, model_path: str, input_dims: list[str]):
         with open(model_path, "rb") as file:
             model = pickle.load(file)
 
         # arr shape: (..., bands)
-        orig_shape = arr.shape[:-1]
-        n_features = arr.shape[-1]
+        orig_shape = arr.shape[: len(input_dims)]
+        feature_shape = arr.shape[len(input_dims) :]
+        n_features = math.prod(feature_shape)
 
         arr2d = arr.reshape(-1, n_features)
 
@@ -64,10 +66,10 @@ class SkLearnModel(MLModel):
     def run_model(self, datacube: xr.DataArray) -> xr.DataArray:
         # !!!!
         # At the moment only works for models that take in a single dim (e.g. bands)
-        if len(self.input.input.dim_order) > 1:
-            raise NotImplementedError(
-                "this model is not supported as it takes more than one dim as input"
-            )
+        # if len(self.input.input.dim_order) > 1:
+        #     raise NotImplementedError(
+        #         "this model is not supported as it takes more than one dim as input"
+        #     )
 
         if len(self.output.result.dim_order) > 1:
             raise NotImplementedError(
@@ -88,26 +90,34 @@ class SkLearnModel(MLModel):
             self._model_filepath = self._get_model()
 
         # resolve delayed model_filepath: Turn delayed string into 0-d dask array
-        model_path_da = da.from_delayed(self._model_filepath, shape=(), dtype=object)
+        model_path_da = da.from_delayed(
+            self._model_filepath, shape=(), dtype=object
+        ).persist()
+
+        # using .persist() is not that elegant, as it starts computation already on a worker
+        # This is (so far) the only solution that I found to make the object resolve only once
+        # before passing it to apply_ufunc below, and not once for each chunk.
+        # we obviously only want to fit the model once, then re-use it for each chunk.
 
         input_dim_mapping = self.get_datacube_dimension_mapping(datacube)
+        input_dims = [d[0] for d in input_dim_mapping]
 
         pre_datacube = self.preprocess_datacube(datacube)
 
         # dimensions: [*dims-in-model, *dims-not-in-model]
-        if input_dim_mapping[0][1] != 0:
-            pre_datacube = self.reorder_dc_dims_for_model_input(pre_datacube)
+        # if input_dim_mapping[0][1] != 0:
+        #     pre_datacube = self.reorder_dc_dims_for_model_input(pre_datacube)
 
-        pre_datacube = pre_datacube.chunk({input_dim_mapping[0][0]: -1})
+        pre_datacube = pre_datacube.chunk({d: -1 for d in input_dims})
 
         result = xr.apply_ufunc(
             self.predict_func,
             pre_datacube,
             model_path_da,
-            input_core_dims=[[input_dim_mapping[0][0]], []],
+            input_core_dims=[input_dims, []],
             output_core_dims=[[]],
-            # kwargs={"model_path": self._model_filepath},
-            vectorize=False,
+            kwargs={"input_dims": input_dims},
+            # vectorize=False,
             dask="parallelized",
             output_dtypes=[self.output.result.data_type],
         )
@@ -138,12 +148,15 @@ class RfClassModel(SkLearnModel):
         with open(model_path, "rb") as file:
             model: RandomForestClassifier = pickle.load(file)
 
-        X_train = training_set_df[self.input.bands]
-        y_train = training_set_df[self.output.result.dim_order[0]]
+        out_col_name = self.output.result.dim_order[0]
+
+        X_train = training_set_df.drop(columns=[out_col_name])
+        y_train = training_set_df[out_col_name]
 
         encoder = LabelEncoder()
         y_train_enc = encoder.fit_transform(y_train)
 
+        # Here we finally fit the model!!!
         model.fit(X_train.values, y_train_enc)
 
         self.output.classes = [
@@ -158,15 +171,24 @@ class RfClassModel(SkLearnModel):
 
     def fit_model(self, training_set: xr.DataArray) -> Self:
         in_dims = self.input.input.dim_order
-        if len(in_dims) > 1:
-            raise ValueError("Only one input dimension is allowed in RF classifier")
-        in_dim = in_dims[0]
+        # if len(in_dims) > 1:
+        #     raise ValueError("Only one input dimension is allowed in RF classifier")
+        # in_dim = in_dims[0]
 
         out_dims = self.output.result.dim_order
         if len(out_dims) > 1:
             raise ValueError("Only one output dimension is allowed in RF classifier")
 
-        training_set_ds = training_set.to_dataset(dim=in_dim)
+        dim_mapping = self.get_datacube_dimension_mapping(training_set)
+        dims = [d[0] for d in dim_mapping]
+
+        stacked = training_set.stack(feature=dims)
+        new_cols = [
+            f"{str(t)}_{b}" for t, b in zip(*[stacked.coords[d].values for d in dims])
+        ]
+        stacked = stacked.drop_vars(["feature", *dims]).assign_coords(feature=new_cols)
+
+        training_set_ds = stacked.to_dataset(dim="feature")
         training_set_df = training_set_ds.to_dask_dataframe()
 
         fitted_model_path = self.fit(training_set_df)

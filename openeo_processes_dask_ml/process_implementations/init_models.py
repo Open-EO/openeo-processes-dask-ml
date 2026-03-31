@@ -52,8 +52,8 @@ def mlm_class_random_forest(
                 "name": "12-Band Sentinel 2",
                 "bands": ["a"],  # will be overwritten later
                 "input": {
-                    "shape": [1],  # will be overwritten later
-                    "dim_order": ["bands"],
+                    "shape": [1, 1],  # will be overwritten later
+                    "dim_order": ["time", "bands"],
                     "data_type": "float16",
                 },
                 "value_scaling": None,

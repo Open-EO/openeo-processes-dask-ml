@@ -29,10 +29,10 @@ def ml_fit(model: MLModel, training_set: xr.DataArray, target: str):
                 f"Dimension {inp_dim} required by the model is not in training_set"
             )
 
+    training_set_dims = training_set.dims
+
     # add bands metadata from datacube
     if "band" in model.input.input.dim_order or "bands" in model.input.input.dim_order:
-        training_set_dims = training_set.dims
-
         model_band_dim_name = (
             "band" if "band" in model.input.input.dim_order else "bands"
         )
@@ -50,6 +50,13 @@ def ml_fit(model: MLModel, training_set: xr.DataArray, target: str):
         # set band length
         model.input.bands = band_names
         model.input.input.shape[model_band_index] = len(band_names)
+
+    if "time" in model.input.input.dim_order:
+        model_time_index = model.input.input.dim_order.index("time")
+        if "time" not in training_set_dims:
+            raise DimensionMissing("Training Dataset does not contain a time dimension")
+
+        model.input.input.shape[model_time_index] = len(training_set.coords["time"])
 
     model.output.result.dim_order = [target]
     fitted_model = model.fit_model(cleaned)
