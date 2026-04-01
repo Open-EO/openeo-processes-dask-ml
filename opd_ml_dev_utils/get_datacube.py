@@ -201,7 +201,6 @@ def load_stac_with_cache(
                     "nir09": "B09_60m",
                     "swir16": "B11_20m",
                     "swir22": "B12_20m",
-                    "scl": "SCL",
                 }
             elif collection_id == "sentinel-2-global-mosaics":
                 band_conversion = {
@@ -229,6 +228,7 @@ def load_stac_with_cache(
                 "nir09": "B09",
                 "swir16": "B11",
                 "swir22": "B12",
+                "scl": "SCL",
             }
             old_bands = bands
             bands = [band_conversion[b] if b in band_conversion else b for b in bands]
