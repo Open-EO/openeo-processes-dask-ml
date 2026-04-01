@@ -58,18 +58,40 @@ def load_collection(
     properties: Optional[dict] = None,
     **kwargs,
 ):
-    aws_stac_v1_url = "https://earth-search.aws.element84.com/v1"
-    cdse_stac_v1_url = "https://stac.dataspace.copernicus.eu/v1"
-    plan_comp_url = "https://planetarycomputer.microsoft.com/api/stac/v1"
+    data_backends = {
+        "aws": "https://earth-search.aws.element84.com/v1",
+        "cdse": "https://stac.dataspace.copernicus.eu/v1",
+        "planetarycomputer": "https://planetarycomputer.microsoft.com/api/stac/v1",
+    }
 
-    url = plan_comp_url
-
-    if id in _get_stac_collections(url):
-        use_url = url
+    id_split = id.split("/")
+    if len(id_split) == 1:
+        backend = "planetarycomputer"
+        collection_id = id
+        url = data_backends["planetarycomputer"]
+    elif len(id_split) == 2:
+        backend, collection_id = id_split
+        try:
+            url = data_backends[backend]
+        except KeyError:
+            raise ValueError(
+                f"Data backend {backend} not available. Use one of the following: "
+                f"{', '.join(data_backends.keys())}"
+            )
     else:
-        raise ValueError(f"Collection with ID {id} not available")
+        raise ValueError(
+            "Could not parse collection ID. Must either be the name of a collection, "
+            "or follow form <backend>/<collection-name>."
+        )
 
-    collection_url = use_url + f"/collections/{id}"
+    if collection_id not in _get_stac_collections(url):
+        raise ValueError(
+            f"Collection with ID {collection_id} not available on {backend}. "
+            f"Try another backend. "
+            f"Available backends are {', '.join(data_backends.keys())}"
+        )
+
+    collection_url = url + f"/collections/{collection_id}"
 
     if properties:
         resolved_properties = {

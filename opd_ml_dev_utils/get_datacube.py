@@ -185,20 +185,33 @@ def load_stac_with_cache(
             os.environ["AWS_ACCESS_KEY_ID"] = cdse_key
             os.environ["AWS_SECRET_ACCESS_KEY"] = cdse_key_secret
 
-            band_conversion = {
-                "coastal": "B01_20m",
-                "blue": "B02_10m",
-                "green": "B03_10m",
-                "red": "B04_10m",
-                "rededge1": "B05_20m",
-                "rededge2": "B06_20m",
-                "rededge3": "B07_20m",
-                "nir": "B08_10m",
-                "nir08": "B8A_20m",
-                "nir09": "B09_60m",
-                "swir16": "B11_20m",
-                "swir22": "B12_20m",
-            }
+            collection_id = url.split("/")[-1]
+
+            if collection_id == "sentinel-2-l2a":
+                band_conversion = {
+                    "coastal": "B01_20m",
+                    "blue": "B02_10m",
+                    "green": "B03_10m",
+                    "red": "B04_10m",
+                    "rededge1": "B05_20m",
+                    "rededge2": "B06_20m",
+                    "rededge3": "B07_20m",
+                    "nir": "B08_10m",
+                    "nir08": "B8A_20m",
+                    "nir09": "B09_60m",
+                    "swir16": "B11_20m",
+                    "swir22": "B12_20m",
+                    "scl": "SCL",
+                }
+            elif collection_id == "sentinel-2-global-mosaics":
+                band_conversion = {
+                    "blue": "B02",
+                    "green": "B03",
+                    "red": "B04",
+                    "nir": "B08",
+                }
+            else:
+                band_conversion = {}
 
             old_bands = bands
             bands = [band_conversion[b] if b in band_conversion else b for b in bands]
