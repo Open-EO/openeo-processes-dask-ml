@@ -179,7 +179,7 @@ def load_stac_with_cache(
             if cdse_key is None or cdse_key_secret is None:
                 raise Exception(
                     "CDSE Credentials are missing. "
-                    "Set them using ENVs CDSE_S3_ACCESS_KEY and CDSE_s3_SECRET_KEY"
+                    "Set them using ENVs CDSE_S3_ACCESS_KEY and CDSE_S3_SECRET_KEY"
                 )
 
             os.environ["AWS_ACCESS_KEY_ID"] = cdse_key
