@@ -2,6 +2,9 @@ import json
 import os
 from pathlib import Path
 
+from matplotlib import pyplot as plt
+from xarray import DataArray
+
 if Path.cwd().resolve().name == "examples":
     os.chdir("..")
 if Path.cwd().resolve().name != "openeo-processes-dask-ml":
@@ -15,19 +18,45 @@ with open("examples/training_data/train_data.json") as file:
 
 
 process_graph = {
+    # 1) datacube for prediction
     "loadcollection1": {
         "process_id": "load_collection",
         "arguments": {
-            "bands": ["blue", "green", "red", "nir"],
+            "bands": [
+                "coastal",
+                "blue",
+                "green",
+                "red",
+                "rededge1",
+                "rededge2",
+                "rededge3",
+                "nir",
+                "nir08",
+                "nir09",
+                "swir16",
+                "swir22",
+                "scl",
+            ],
             "id": "sentinel-2-l2a",
             "spatial_extent": {
-                "west": -2.997065,
-                "south": 47.892255,
-                "east": -2.671039,
-                "north": 48.047242,
+                "west": -2.96,
+                "south": 47.91,
+                "east": -2.7,
+                "north": 48.06,
                 "crs": 4326,
             },
-            "temporal_extent": ["2017-03-01T00:00:00Z", "2017-07-31T23:59:59Z"],
+            "temporal_extent": ["2017-05-01T00:00:00Z", "2017-09-30T23:59:59Z"],
+            "properties": {
+                "eo:cloud_cover": {
+                    "process_graph": {
+                        "lte1": {
+                            "process_id": "lte",
+                            "arguments": {"x": {"from_parameter": "value"}, "y": 50},
+                            "result": True,
+                        }
+                    }
+                }
+            },
         },
     },
     "aggregatetemporalperiod1": {
@@ -46,6 +75,10 @@ process_graph = {
             },
         },
     },
+    # "arrayinterpolatelinear1": {
+    #     "process_id": "array_interpolate_linear",
+    #     "arguments": {"data": {"from_node": "aggregatetemporalperiod1"}},
+    # },
     "ndvi1": {
         "process_id": "ndvi",
         "arguments": {
@@ -55,27 +88,50 @@ process_graph = {
             "target_band": "NDVI",
         },
     },
-    "arrayinterpolatelinear1": {
-        "process_id": "array_interpolate_linear",
-        "arguments": {"data": {"from_node": "ndvi1"}},
-    },
+    # init the RF model
     "mlmclassrandomforest1": {
         "process_id": "mlm_class_random_forest",
         "arguments": {"max_variables": "sqrt", "num_trees": 200, "seed": 42},
     },
+    # 2) datacube for training
     "loadcollection2": {
         "process_id": "load_collection",
         "arguments": {
-            "bands": ["blue", "green", "red", "nir"],
+            "bands": [
+                "coastal",
+                "blue",
+                "green",
+                "red",
+                "rededge1",
+                "rededge2",
+                "rededge3",
+                "nir",
+                "nir08",
+                "nir09",
+                "swir16",
+                "swir22",
+                "scl",
+            ],
             "id": "sentinel-2-l2a",
             "spatial_extent": {
-                "west": -4.026661,
-                "south": 48.202738,
-                "east": -3.743587,
-                "north": 48.300371,
+                "west": -4.02,
+                "south": 48.20,
+                "east": -3.74,
+                "north": 48.30,
                 "crs": 4326,
             },
-            "temporal_extent": ["2017-03-01T00:00:00Z", "2017-07-31T23:59:59Z"],
+            "temporal_extent": ["2017-05-01T00:00:00Z", "2017-09-30T23:59:59Z"],
+            "properties": {
+                "eo:cloud_cover": {
+                    "process_graph": {
+                        "lte1": {
+                            "process_id": "lte",
+                            "arguments": {"x": {"from_parameter": "value"}, "y": 50},
+                            "result": True,
+                        }
+                    }
+                }
+            },
         },
     },
     "aggregatetemporalperiod2": {
@@ -94,6 +150,10 @@ process_graph = {
             },
         },
     },
+    # "arrayinterpolatelinear2": {
+    #     "process_id": "array_interpolate_linear",
+    #     "arguments": {"data": {"from_node": "aggregatetemporalperiod2"}},
+    # },
     "ndvi2": {
         "process_id": "ndvi",
         "arguments": {
@@ -103,14 +163,10 @@ process_graph = {
             "target_band": "NDVI",
         },
     },
-    "arrayinterpolatelinear2": {
-        "process_id": "array_interpolate_linear",
-        "arguments": {"data": {"from_node": "ndvi2"}},
-    },
     "aggregatespatial1": {
         "process_id": "aggregate_spatial",
         "arguments": {
-            "data": {"from_node": "arrayinterpolatelinear2"},
+            "data": {"from_node": "ndvi2"},
             "geometries": geoms,
             "reducer": {
                 "process_graph": {
@@ -134,7 +190,7 @@ process_graph = {
     "mlpredict1": {
         "process_id": "ml_predict",
         "arguments": {
-            "data": {"from_node": "arrayinterpolatelinear1"},
+            "data": {"from_node": "ndvi1"},
             "model": {"from_node": "mlfit1"},
         },
     },
@@ -149,6 +205,5 @@ process_graph = {
     },
 }
 
-out = execute_graph_dict(process_graph)
-
-print(out)
+out: DataArray = execute_graph_dict(process_graph)
+out.compute()
