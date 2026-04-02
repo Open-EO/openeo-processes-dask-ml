@@ -13,6 +13,8 @@ from dask import dataframe as ddf
 from dask import delayed
 from pystac.extensions.classification import Classification
 from sklearn.ensemble import RandomForestClassifier
+from sklearn.metrics import accuracy_score, classification_report, cohen_kappa_score
+from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import LabelEncoder
 
 from openeo_processes_dask_ml.model_execution import run_sklearn_model
@@ -150,14 +152,16 @@ class RfClassModel(SkLearnModel):
 
         out_col_name = self.output.result.dim_order[0]
 
-        X_train = training_set_df.drop(columns=[out_col_name])
-        y_train = training_set_df[out_col_name]
+        X = training_set_df.drop(columns=[out_col_name])
+        y = training_set_df[out_col_name]
 
         encoder = LabelEncoder()
-        y_train_enc = encoder.fit_transform(y_train)
+        y_enc = encoder.fit_transform(y)
+
+        X_train, X_val, y_train, y_val = train_test_split(X, y_enc, test_size=0.15)
 
         # Here we finally fit the model!!!
-        model.fit(X_train.values, y_train_enc)
+        model.fit(X_train.values, y_train)
 
         self.output.classes = [
             Classification.create(i, name=name)
@@ -166,6 +170,20 @@ class RfClassModel(SkLearnModel):
 
         with open(model_path, "wb") as file:
             pickle.dump(model, file)
+
+        y_pred = model.predict(X_val)
+        report = classification_report(
+            y_val,
+            y_pred,
+            labels=range(len(encoder.classes_)),
+            target_names=encoder.classes_,
+        )
+        print("Classification Report: \n")
+        print(report)
+        print()
+        print(f"Overall Accuracy: {accuracy_score(y_val, y_pred)}")
+        print()
+        print(f"Cohens Kappa: {cohen_kappa_score(y_val, y_pred)}")
 
         return model_path
 
