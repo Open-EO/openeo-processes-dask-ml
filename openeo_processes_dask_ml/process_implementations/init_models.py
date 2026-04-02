@@ -36,7 +36,7 @@ def mlm_class_random_forest(
         )
 
     # creaet sklearn RandomForest object
-    model_path = RfClassModel.init_model(max_features, num_trees, model_id)
+    model_path = RfClassModel.init_model(max_features, num_trees, model_id, seed)
 
     # 2) Create stac-mlm item
     # 2a) stac-mlm props
@@ -231,5 +231,6 @@ def mlm_class_random_forest(
 
     rf_model = RfClassModel(mlm_item, "weights", 0, 0)
     rf_model.set_model_filepath(model_path)
+    rf_model.seed = seed
 
     return rf_model

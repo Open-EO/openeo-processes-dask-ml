@@ -50,6 +50,7 @@ logger = logging.getLogger(__name__)
 
 
 class MLModel(ABC):
+    seed: int | None
     _stac_item: pystac.Item
     _model_asset: pystac.Asset
     _input_index: int
@@ -63,6 +64,7 @@ class MLModel(ABC):
         output_index: int = 0,
     ):
         self.job_id = str(uuid4())
+        self.seed = None
 
         self._stac_item = stac_item
         self._model_asset = self._get_model_asset(model_asset_name)

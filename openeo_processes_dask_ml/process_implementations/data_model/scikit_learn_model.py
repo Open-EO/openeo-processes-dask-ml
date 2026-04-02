@@ -1,6 +1,7 @@
 import copy
 import math
 import pickle
+import random
 import sys
 from collections.abc import Iterable
 from pathlib import Path
@@ -132,9 +133,14 @@ class SkLearnModel(MLModel):
 class RfClassModel(SkLearnModel):
     @staticmethod
     def init_model(
-        max_features: int | str | float | None, n_trees: int, model_id: str
+        max_features: int | str | float | None,
+        n_trees: int,
+        model_id: str,
+        seed: int = None,
     ) -> str:
-        r = RandomForestClassifier(n_trees, max_features=max_features)
+        r = RandomForestClassifier(
+            n_trees, max_features=max_features, random_state=seed
+        )
 
         # save model to disk
         modelpath = MODEL_CACHE_DIR + "/" + model_id + ".pkl"
@@ -145,6 +151,9 @@ class RfClassModel(SkLearnModel):
 
     @delayed
     def fit(self, training_set_df: ddf.DataFrame) -> str:
+        random.seed(self.seed)
+        np.random.seed(self.seed)
+
         model_path = self._model_filepath
 
         with open(model_path, "rb") as file:
@@ -158,7 +167,9 @@ class RfClassModel(SkLearnModel):
         encoder = LabelEncoder()
         y_enc = encoder.fit_transform(y)
 
-        X_train, X_val, y_train, y_val = train_test_split(X, y_enc, test_size=0.15)
+        X_train, X_val, y_train, y_val = train_test_split(
+            X, y_enc, test_size=0.15, random_state=self.seed
+        )
 
         # Here we finally fit the model!!!
         model.fit(X_train.values, y_train)
