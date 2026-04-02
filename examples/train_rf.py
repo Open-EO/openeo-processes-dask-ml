@@ -59,10 +59,79 @@ process_graph = {
             },
         },
     },
+    "reducedimension1": {
+        "process_id": "reduce_dimension",
+        "arguments": {
+            "data": {"from_node": "loadcollection1"},
+            "dimension": "bands",
+            "reducer": {
+                "process_graph": {
+                    "arrayelement1": {
+                        "process_id": "array_element",
+                        "arguments": {"data": {"from_parameter": "data"}, "index": 12},
+                    },
+                    "eq1": {
+                        "process_id": "eq",
+                        "arguments": {"x": {"from_node": "arrayelement1"}, "y": 3},
+                    },
+                    "eq2": {
+                        "process_id": "eq",
+                        "arguments": {"x": {"from_node": "arrayelement1"}, "y": 8},
+                    },
+                    "or1": {
+                        "process_id": "or",
+                        "arguments": {
+                            "x": {"from_node": "eq1"},
+                            "y": {"from_node": "eq2"},
+                        },
+                    },
+                    "eq3": {
+                        "process_id": "eq",
+                        "arguments": {"x": {"from_node": "arrayelement1"}, "y": 9},
+                    },
+                    "or2": {
+                        "process_id": "or",
+                        "arguments": {
+                            "x": {"from_node": "or1"},
+                            "y": {"from_node": "eq3"},
+                        },
+                        "result": True,
+                    },
+                }
+            },
+        },
+    },
+    "filterbands1": {
+        "process_id": "filter_bands",
+        "arguments": {
+            "data": {"from_node": "loadcollection1"},
+            "bands": [
+                "coastal",
+                "blue",
+                "green",
+                "red",
+                "rededge1",
+                "rededge2",
+                "rededge3",
+                "nir",
+                "nir08",
+                "nir09",
+                "swir16",
+                "swir22",
+            ],
+        },
+    },
+    "mask1": {
+        "process_id": "mask",
+        "arguments": {
+            "data": {"from_node": "filterbands1"},
+            "mask": {"from_node": "reducedimension1"},
+        },
+    },
     "aggregatetemporalperiod1": {
         "process_id": "aggregate_temporal_period",
         "arguments": {
-            "data": {"from_node": "loadcollection1"},
+            "data": {"from_node": "mask1"},
             "period": "month",
             "reducer": {
                 "process_graph": {
@@ -134,10 +203,79 @@ process_graph = {
             },
         },
     },
+    "reducedimension2": {
+        "process_id": "reduce_dimension",
+        "arguments": {
+            "data": {"from_node": "loadcollection2"},
+            "dimension": "bands",
+            "reducer": {
+                "process_graph": {
+                    "arrayelement1": {
+                        "process_id": "array_element",
+                        "arguments": {"data": {"from_parameter": "data"}, "index": 12},
+                    },
+                    "eq1": {
+                        "process_id": "eq",
+                        "arguments": {"x": {"from_node": "arrayelement1"}, "y": 3},
+                    },
+                    "eq2": {
+                        "process_id": "eq",
+                        "arguments": {"x": {"from_node": "arrayelement1"}, "y": 8},
+                    },
+                    "or1": {
+                        "process_id": "or",
+                        "arguments": {
+                            "x": {"from_node": "eq1"},
+                            "y": {"from_node": "eq2"},
+                        },
+                    },
+                    "eq3": {
+                        "process_id": "eq",
+                        "arguments": {"x": {"from_node": "arrayelement1"}, "y": 9},
+                    },
+                    "or2": {
+                        "process_id": "or",
+                        "arguments": {
+                            "x": {"from_node": "or1"},
+                            "y": {"from_node": "eq3"},
+                        },
+                        "result": True,
+                    },
+                }
+            },
+        },
+    },
+    "filterbands2": {
+        "process_id": "filter_bands",
+        "arguments": {
+            "data": {"from_node": "loadcollection2"},
+            "bands": [
+                "coastal",
+                "blue",
+                "green",
+                "red",
+                "rededge1",
+                "rededge2",
+                "rededge3",
+                "nir",
+                "nir08",
+                "nir09",
+                "swir16",
+                "swir22",
+            ],
+        },
+    },
+    "mask2": {
+        "process_id": "mask",
+        "arguments": {
+            "data": {"from_node": "filterbands2"},
+            "mask": {"from_node": "reducedimension2"},
+        },
+    },
     "aggregatetemporalperiod2": {
         "process_id": "aggregate_temporal_period",
         "arguments": {
-            "data": {"from_node": "loadcollection2"},
+            "data": {"from_node": "mask2"},
             "period": "month",
             "reducer": {
                 "process_graph": {
@@ -205,5 +343,15 @@ process_graph = {
     },
 }
 
-out: DataArray = execute_graph_dict(process_graph)
-out.compute()
+
+out = execute_graph_dict(process_graph).compute()
+
+
+# print(out._model_filepath)
+# path = out._model_filepath.compute()
+#
+# print(path)
+#
+for t in out.coords["time"]:
+    out.sel(time=t, bands=["red", "green", "blue"]).plot.imshow(vmin=0, vmax=5000)
+    plt.show()
