@@ -39,10 +39,10 @@ process_graph = {
             ],
             "id": "sentinel-2-l2a",
             "spatial_extent": {
-                "west": -2.96,
-                "south": 47.91,
-                "east": -2.7,
-                "north": 48.06,
+                "west": -4.02,
+                "south": 48.10,
+                "east": -3.74,
+                "north": 48.20,
                 "crs": 4326,
             },
             "temporal_extent": ["2017-05-01T00:00:00Z", "2017-09-30T23:59:59Z"],
@@ -144,10 +144,6 @@ process_graph = {
             },
         },
     },
-    # "arrayinterpolatelinear1": {
-    #     "process_id": "array_interpolate_linear",
-    #     "arguments": {"data": {"from_node": "aggregatetemporalperiod1"}},
-    # },
     "ndvi1": {
         "process_id": "ndvi",
         "arguments": {
@@ -160,7 +156,7 @@ process_graph = {
     # init the RF model
     "mlmclassrandomforest1": {
         "process_id": "mlm_class_random_forest",
-        "arguments": {"max_variables": "sqrt", "num_trees": 200, "seed": 42},
+        "arguments": {"max_variables": "sqrt", "num_trees": 150, "seed": 42},
     },
     # 2) datacube for training
     "loadcollection2": {
@@ -288,10 +284,6 @@ process_graph = {
             },
         },
     },
-    # "arrayinterpolatelinear2": {
-    #     "process_id": "array_interpolate_linear",
-    #     "arguments": {"data": {"from_node": "aggregatetemporalperiod2"}},
-    # },
     "ndvi2": {
         "process_id": "ndvi",
         "arguments": {
@@ -308,8 +300,8 @@ process_graph = {
             "geometries": geoms,
             "reducer": {
                 "process_graph": {
-                    "mean1": {
-                        "process_id": "mean",
+                    "median1": {
+                        "process_id": "median",
                         "arguments": {"data": {"from_parameter": "data"}},
                         "result": True,
                     }
@@ -343,15 +335,5 @@ process_graph = {
     },
 }
 
-
-out = execute_graph_dict(process_graph).compute()
-
-
-# print(out._model_filepath)
-# path = out._model_filepath.compute()
-#
-# print(path)
-#
-for t in out.coords["time"]:
-    out.sel(time=t, bands=["red", "green", "blue"]).plot.imshow(vmin=0, vmax=5000)
-    plt.show()
+out = execute_graph_dict(process_graph)
+print(out)
