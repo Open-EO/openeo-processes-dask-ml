@@ -199,11 +199,6 @@ class RfClassModel(SkLearnModel):
         return model_path
 
     def fit_model(self, training_set: xr.DataArray) -> Self:
-        in_dims = self.input.input.dim_order
-        # if len(in_dims) > 1:
-        #     raise ValueError("Only one input dimension is allowed in RF classifier")
-        # in_dim = in_dims[0]
-
         out_dims = self.output.result.dim_order
         if len(out_dims) > 1:
             raise ValueError("Only one output dimension is allowed in RF classifier")
