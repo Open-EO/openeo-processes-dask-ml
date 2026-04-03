@@ -218,7 +218,7 @@ class RfClassModel(SkLearnModel):
         stacked = stacked.drop_vars(["feature", *dims]).assign_coords(feature=new_cols)
 
         training_set_ds = stacked.to_dataset(dim="feature")
-        training_set_df = training_set_ds.to_dask_dataframe()
+        training_set_df = training_set_ds.to_dask_dataframe().reset_index(drop=True)
 
         fitted_model_path = self.fit(training_set_df)
 
