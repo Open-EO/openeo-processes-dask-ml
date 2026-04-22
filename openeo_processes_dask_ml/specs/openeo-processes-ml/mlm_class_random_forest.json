@@ -47,6 +47,25 @@
                     "null"
                 ]
             }
+        },
+        {
+            "name": "dimension",
+            "description": "Dimension to be classified by the RandomForest algorithm. Defaults to `bands`.",
+            "optional": true,
+            "default": "bands",
+            "schema": {
+                "type": "string",
+                "enum": ["bands", "embedding"]
+            }
+        },
+        {
+            "name": "use_timeseries",
+            "description": "Controls whether a time series of `dimension` should be used in the classifier, or if each time step should be classified individually.",
+            "optional": true,
+            "default": true,
+            "schema": {
+                "type": "boolean"
+            }
         }
     ],
     "returns": {
