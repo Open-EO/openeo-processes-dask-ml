@@ -44,7 +44,7 @@ def predict_data() -> xr.DataArray:
 
 
 @pytest.mark.vcr()
-def test_init_model():
+def test_init_model_default_values():
     seed = 42
     model = mlm_class_random_forest("log2", 100, seed)
 
@@ -56,6 +56,31 @@ def test_init_model():
 
     assert model.model_metadata.pretrained == False
 
+    assert "time" in model.input.input.dim_order
+    assert "bands" in model.input.input.dim_order
+
+    os.remove(model._model_filepath)
+
+
+@pytest.mark.parametrize("dim_name", ("band", "bands", "embedding", "embeddings"))
+def test_init_model_manual_values(dim_name: str):
+    model = mlm_class_random_forest("log2", 50, dimension=dim_name)
+    assert len(model.input.input.dim_order) == 2
+    assert "time" in model.input.input.dim_order
+    assert dim_name in model.input.input.dim_order
+
+    os.remove(model._model_filepath)
+
+
+def test_init_model_no_temporal():
+    model = mlm_class_random_forest(
+        "log2", 50, dimension="embedding", use_timeseries=False
+    )
+
+    assert len(model.input.input.dim_order) == 1
+    assert "embedding" in model.input.input.dim_order
+    assert "time" not in model.input.input.dim_order
+
     os.remove(model._model_filepath)
 
 
@@ -64,7 +89,9 @@ def test_init_model():
 # this is by no means systematic testing, or modular or anything
 # shoild add proper systematic testing later, but this is better than nothing
 @pytest.mark.vcr()
-def test_fit_model(training_data: xr.DataArray, predict_data: xr.DataArray):
+def test_fit_model_default_values(
+    training_data: xr.DataArray, predict_data: xr.DataArray
+):
     # 1) init model
     model = mlm_class_random_forest("log2")
 
@@ -81,6 +108,9 @@ def test_fit_model(training_data: xr.DataArray, predict_data: xr.DataArray):
         len(training_data.coords["time"]),
         len(training_data.coords["bands"]),
     ]
+
+    assert fitted.input.input.shape == [5, 12]
+
     assert fitted.output.result.dim_order == ["class_name"]
     assert fitted.output.result.shape == [1]
 
@@ -114,5 +144,59 @@ def test_fit_model(training_data: xr.DataArray, predict_data: xr.DataArray):
 
     out = out.compute()
     assert isinstance(out, xr.DataArray)
+
+    os.remove(out_path)
+
+
+@pytest.mark.vcr()
+def test_fit_model_no_temporal(training_data: xr.DataArray, predict_data: xr.DataArray):
+    # 1) init model
+    model = mlm_class_random_forest("log2", use_timeseries=False)
+
+    untrained_filepath = model._model_filepath
+
+    with open(untrained_filepath, "rb") as file:
+        untrained_model_bytes = file.read()
+
+    # 2) fit model
+    fitted = ml_fit(model, training_data, "class_name")
+
+    assert len(fitted.input.input.dim_order) == 1
+    assert fitted.input.input.dim_order == ["bands"]
+    assert "time" not in fitted.input.input.dim_order
+
+    assert fitted.input.input.shape == [12]
+
+    assert isinstance(fitted._model_filepath, Delayed)
+
+    out_path = fitted._model_filepath.compute()
+
+    assert isinstance(out_path, str)
+    assert out_path == untrained_filepath
+
+    with open(out_path, "rb") as file:
+        trained_model_bytes = file.read()
+
+    # make usre the file has changed
+    assert untrained_model_bytes != trained_model_bytes
+
+    # 3) predict
+    out = ml_predict(predict_data, fitted)
+
+    assert isinstance(out, xr.DataArray)
+    assert "bands" not in out.dims
+    assert "time" in out.dims
+
+    assert "class_name" in out.dims
+    assert len(out.coords["class_name"]) == 1
+    assert len(out.coords["time"]) == 5
+
+    assert len(predict_data.coords["x"]) == len(out.coords["x"])
+    assert len(predict_data.coords["y"]) == len(out.coords["y"])
+
+    out = out.compute()
+    assert isinstance(out, xr.DataArray)
+
+    print(out)
 
     os.remove(out_path)
