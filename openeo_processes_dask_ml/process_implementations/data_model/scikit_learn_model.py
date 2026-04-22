@@ -55,9 +55,11 @@ class SkLearnModel(MLModel):
         with open(model_path, "rb") as file:
             model = pickle.load(file)
 
+        n_dims_arr = len(arr.shape)
+
         # arr shape: (..., bands)
-        orig_shape = arr.shape[: len(input_dims)]
-        feature_shape = arr.shape[len(input_dims) :]
+        orig_shape = arr.shape[: n_dims_arr - len(input_dims)]
+        feature_shape = arr.shape[n_dims_arr - len(input_dims) :]
         n_features = math.prod(feature_shape)
 
         arr2d = arr.reshape(-1, n_features)
@@ -138,6 +140,8 @@ class RfClassModel(SkLearnModel):
         model_id: str,
         seed: int = None,
     ) -> str:
+        # todo: input dimensions: bands, time-bands, embedding
+
         r = RandomForestClassifier(
             n_trees, max_features=max_features, random_state=seed
         )
@@ -150,7 +154,7 @@ class RfClassModel(SkLearnModel):
         return modelpath
 
     @delayed
-    def fit(self, training_set_df: ddf.DataFrame) -> str:
+    def fit(self, training_set_df: ddf.DataFrame, pred_col_names: list[str]) -> str:
         random.seed(self.seed)
         np.random.seed(self.seed)
 
@@ -161,7 +165,7 @@ class RfClassModel(SkLearnModel):
 
         out_col_name = self.output.result.dim_order[0]
 
-        X = training_set_df.drop(columns=[out_col_name])
+        X = training_set_df[pred_col_names]
         y = training_set_df[out_col_name]
 
         encoder = LabelEncoder()
@@ -207,15 +211,18 @@ class RfClassModel(SkLearnModel):
         dims = [d[0] for d in dim_mapping]
 
         stacked = training_set.stack(feature=dims)
+
+        # I pitty anyone who at one point will have to debug this line...
         new_cols = [
-            f"{str(t)}_{b}" for t, b in zip(*[stacked.coords[d].values for d in dims])
+            "_".join(str(v) for v in vals)
+            for vals in zip(*[stacked.coords[d].values for d in dims])
         ]
         stacked = stacked.drop_vars(["feature", *dims]).assign_coords(feature=new_cols)
 
         training_set_ds = stacked.to_dataset(dim="feature")
         training_set_df = training_set_ds.to_dask_dataframe().reset_index(drop=True)
 
-        fitted_model_path = self.fit(training_set_df)
+        fitted_model_path = self.fit(training_set_df, new_cols)
 
         rf_model_copy = copy.deepcopy(self)
         rf_model_copy._model_filepath = fitted_model_path

@@ -15,7 +15,11 @@ MODEL_NOT_CREATED_YET = "lol"
 
 
 def mlm_class_random_forest(
-    max_variables: int | str, num_trees: int = 100, seed: int | None = None
+    max_variables: int | str,
+    num_trees: int = 100,
+    seed: int | None = None,
+    dimension: str = "bands",
+    use_timeseries: bool = True,
 ) -> "RfClassModel":
     model_id = f"class_rf_{str(uuid4())}"
 
@@ -38,6 +42,12 @@ def mlm_class_random_forest(
     # creaet sklearn RandomForest object
     model_path = RfClassModel.init_model(max_features, num_trees, model_id, seed)
 
+    input_dimensions = [dimension]
+    input_shape = [1]
+    if use_timeseries:
+        input_dimensions.insert(0, "time")
+        input_shape.append(1)
+
     # 2) Create stac-mlm item
     # 2a) stac-mlm props
     mlm_props = {
@@ -52,8 +62,8 @@ def mlm_class_random_forest(
                 "name": "12-Band Sentinel 2",
                 "bands": ["a"],  # will be overwritten later
                 "input": {
-                    "shape": [1, 1],  # will be overwritten later
-                    "dim_order": ["time", "bands"],
+                    "shape": input_shape,  # will be overwritten later
+                    "dim_order": input_dimensions,
                     "data_type": "float16",
                 },
                 "value_scaling": None,
