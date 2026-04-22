@@ -60,7 +60,7 @@ def mlm_class_random_forest(
         "mlm:input": [
             {
                 "name": "12-Band Sentinel 2",
-                "bands": ["a"],  # will be overwritten later
+                "bands": [],  # Fill later from Training data (if applicable)
                 "input": {
                     "shape": input_shape,  # will be overwritten later
                     "dim_order": input_dimensions,
