@@ -51,6 +51,29 @@ def ml_fit(model: MLModel, training_set: xr.DataArray, target: str):
         model.input.bands = band_names
         model.input.input.shape[model_band_index] = len(band_names)
 
+    # add embedding metadata
+    if (
+        "embedding" in model.input.input.dim_order
+        or "embeddings" in model.input.input.dim_order
+    ):
+        model_embedding_dim_name = (
+            "embedding" if "embedding" in model.input.input.dim_order else "embeddings"
+        )
+        model_emb_index = model.input.input.dim_order.index(model_embedding_dim_name)
+        if (
+            "embedding" not in training_set_dims
+            and "embeddings" not in training_set_dims
+        ):
+            raise DimensionMissing(
+                "Training Dataset does not contain an embedding dimension"
+            )
+
+        emb_dim_name = "embedding" if "embedding" in training_set_dims else "embeddings"
+        model.input.input.shape[model_emb_index] = len(
+            training_set.coords[emb_dim_name]
+        )
+
+    # add time metadata
     if "time" in model.input.input.dim_order:
         model_time_index = model.input.input.dim_order.index("time")
         if "time" not in training_set_dims:
