@@ -22,6 +22,8 @@ MODEL_CACHE_DIR = os.environ.get("OPD_ML_MODEL_CACHE_DIR", f"{CACHE_DIR}/model_c
 DATACUBE_CACHE_DIR = os.environ.get(
     "OPD_ML_DATACUBE_CACHE_DIR", f"{CACHE_DIR}/datacubes"
 )
+os.makedirs(MODEL_CACHE_DIR, exist_ok=True)
+os.makedirs(DATACUBE_CACHE_DIR, exist_ok=True)
 
 TMP_DIR = os.environ.get("OPD_ML_TMP_DIR", "./tmp")
 
