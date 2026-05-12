@@ -160,19 +160,19 @@ def get_band_alternative_names(band_name: str) -> list[str]:
     band_name_lower = band_name.lower()
     band_name_groups = [
         # sentienl 2 bands
-        ["b01", "coastal"],
-        ["b02", "b2", "blue"],
-        ["b03", "b3", "green"],
-        ["b04", "b4", "red"],
-        ["b05", "b5", "rededge1"],
-        ["b06", "b6", "rededge2"],
-        ["b07", "b7", "rededge3"],
-        ["b08", "b8", "nir"],
-        ["b8a", "b08a", "nir08", "nir08", "nir08a", "nir_narrow"],
-        ["b09", "b9", "nir09"],
+        ["b01", "coastal", "b01_20m", "b01_60m"],
+        ["b02", "b2", "blue", "b02_10m", "b02_20m", "b02_60m"],
+        ["b03", "b3", "green", "b03_10m", "b03_20m", "b03_60m"],
+        ["b04", "b4", "red", "b04_10m", "b04_20m", "b04_60m"],
+        ["b05", "b5", "rededge1", "b05_20m", "b05_60m"],
+        ["b06", "b6", "rededge2", "b06_20m", "b06_60m"],
+        ["b07", "b7", "rededge3", "b07_20m", "b07_60m"],
+        ["b08", "b8", "nir", "b08_10m", "b08_20m", "b08_60m"],
+        ["b8a", "b08a", "nir08", "nir08", "nir08a", "nir_narrow", "b8a_20m", "b8a_60m"],
+        ["b09", "b9", "nir09", "b09_60m"],
         ["b10", "cirrus"],
-        ["b11", "swir16", "swir1", "swir_1", "swir-1"],
-        ["b12", "swir22", "swir2", "swir_2", "swir-2"],
+        ["b11", "swir16", "swir1", "swir_1", "swir-1", "b11_20m", "b11_60m"],
+        ["b12", "swir22", "swir2", "swir_2", "swir-2", "b12_20m", "b12_60m"],
         ["aot"],
         ["scl"],
         ["snw"],
@@ -181,6 +181,8 @@ def get_band_alternative_names(band_name: str) -> list[str]:
         ["hv"],
         ["vh"],
         ["vv"],
+        # other
+        ["ndvi"],
     ]
 
     for band_name_group in band_name_groups:

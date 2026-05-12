@@ -166,6 +166,75 @@ def load_stac_with_cache(
     if os.path.exists(path):
         return get_datacube_from_pickle_file(path)
     else:
+        if "https://stac.dataspace.copernicus.eu/v1" in url:
+            # set CDSE AWS S3 envs
+            os.environ["GDAL_HTTP_TCP_KEEPALIVE"] = "YES"
+            os.environ["AWS_S3_ENDPOINT"] = "eodata.dataspace.copernicus.eu"
+            os.environ["AWS_HTTPS"] = "YES"
+            os.environ["AWS_VIRTUAL_HOSTING"] = "FALSE"
+            os.environ["GDAL_HTTP_UNSAFESSL"] = "YES"
+            cdse_key = os.environ.get("CDSE_S3_ACCESS_KEY")
+            cdse_key_secret = os.environ.get("CDSE_S3_SECRET_KEY")
+
+            if cdse_key is None or cdse_key_secret is None:
+                raise Exception(
+                    "CDSE Credentials are missing. "
+                    "Set them using ENVs CDSE_S3_ACCESS_KEY and CDSE_S3_SECRET_KEY"
+                )
+
+            os.environ["AWS_ACCESS_KEY_ID"] = cdse_key
+            os.environ["AWS_SECRET_ACCESS_KEY"] = cdse_key_secret
+
+            collection_id = url.split("/")[-1]
+
+            if collection_id == "sentinel-2-l2a":
+                band_conversion = {
+                    "coastal": "B01_20m",
+                    "blue": "B02_10m",
+                    "green": "B03_10m",
+                    "red": "B04_10m",
+                    "rededge1": "B05_20m",
+                    "rededge2": "B06_20m",
+                    "rededge3": "B07_20m",
+                    "nir": "B08_10m",
+                    "nir08": "B8A_20m",
+                    "nir09": "B09_60m",
+                    "swir16": "B11_20m",
+                    "swir22": "B12_20m",
+                }
+            elif collection_id == "sentinel-2-global-mosaics":
+                band_conversion = {
+                    "blue": "B02",
+                    "green": "B03",
+                    "red": "B04",
+                    "nir": "B08",
+                }
+            else:
+                band_conversion = {}
+
+            old_bands = bands
+            bands = [band_conversion[b] if b in band_conversion else b for b in bands]
+        elif "https://planetarycomputer.microsoft.com/api/stac/v1" in url:
+            band_conversion = {
+                "coastal": "B01",
+                "blue": "B02",
+                "green": "B03",
+                "red": "B04",
+                "rededge1": "B05",
+                "rededge2": "B06",
+                "rededge3": "B07",
+                "nir": "B08",
+                "nir08": "B8A",
+                "nir09": "B09",
+                "swir16": "B11",
+                "swir22": "B12",
+                "scl": "SCL",
+            }
+            old_bands = bands
+            bands = [band_conversion[b] if b in band_conversion else b for b in bands]
+        else:
+            old_bands = None
+
         dc_lazy = load_stac(
             url,
             spatial_extent,
@@ -176,6 +245,11 @@ def load_stac_with_cache(
             projection,
             resampling,
         )
+
+        if old_bands is not None:
+            dc_lazy.coords["bands"] = old_bands
+
+        print(dc_lazy)
         dc = dc_lazy.compute()
 
         _write_datacube_to_cache(dc, path)

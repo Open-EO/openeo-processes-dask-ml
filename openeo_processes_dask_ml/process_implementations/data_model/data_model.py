@@ -2,9 +2,11 @@ import itertools
 import logging
 import os.path
 import subprocess
+import uuid
 from abc import ABC, abstractmethod
 from collections.abc import Iterable
 from pathlib import Path
+from typing import Self
 from uuid import uuid4
 
 import dask.delayed
@@ -48,6 +50,7 @@ logger = logging.getLogger(__name__)
 
 
 class MLModel(ABC):
+    seed: int | None
     _stac_item: pystac.Item
     _model_asset: pystac.Asset
     _input_index: int
@@ -61,6 +64,7 @@ class MLModel(ABC):
         output_index: int = 0,
     ):
         self.job_id = str(uuid4())
+        self.seed = None
 
         self._stac_item = stac_item
         self._model_asset = self._get_model_asset(model_asset_name)
@@ -135,6 +139,7 @@ class MLModel(ABC):
             "Please sepcify which one to use."
         )
 
+    @dask.delayed
     def _get_model(self) -> str:
         # model_asset = self._get_model_asset(asset_name)
         # url = self.model_asset_metadata.asset_href
@@ -158,6 +163,14 @@ class MLModel(ABC):
 
         download_utils.download(url, model_cache_file)
         return model_cache_file
+
+    def set_model_filepath(self, modelpath: str):
+        if self._model_filepath is not None:
+            raise Exception(
+                "Could not assign model file path as it has already been assigned. "
+                "This is to avoid a corrupted state"
+            )
+        self._model_filepath = modelpath
 
     def get_datacube_dimension_mapping(
         self, datacube: xr.DataArray
@@ -600,9 +613,19 @@ class MLModel(ABC):
 
         return removed_dims, added_dims
 
-    def get_chunk_output_shape(self, in_datacube: xr.DataArray) -> tuple[int, ...]:
+    def get_model_out_shape(self, in_datacube: xr.DataArray) -> list[int]:
         model_out_dims = self.get_datacube_output_dimension_mapping(in_datacube)
-        model_out_shape = self.output.result.shape
+        model_out_shape = [*self.output.result.shape]
+
+        # special case "batch"
+        if "batch" in model_out_dims:
+            batch_idx = model_out_dims.index("batch")
+            model_out_shape[batch_idx] = self.get_batch_size()
+
+        return model_out_shape
+
+    def get_chunk_output_shape(self, in_datacube: xr.DataArray) -> tuple[int, ...]:
+        model_out_shape = self.get_model_out_shape(in_datacube)
 
         input_dims_not_in_output = self.get_input_dims_not_in_output(in_datacube)
         dims_not_in_model = self.get_dims_not_in_model(in_datacube)
@@ -612,14 +635,6 @@ class MLModel(ABC):
             if band_dim in input_dims_not_in_output:
                 b_idx = input_dims_not_in_output.index(band_dim)
                 input_dims_not_in_output.pop(b_idx)
-
-        # special case "batch"
-        batch_dim_len = len(in_datacube.coords["batch"])
-        if "batch" in model_out_dims:
-            batch_idx = model_out_dims.index("batch")
-            model_out_shape[batch_idx] = self.get_batch_size()
-        else:
-            model_out_shape.insert(0, batch_dim_len)
 
         chunk_shape = (
             *model_out_shape,
@@ -876,7 +891,10 @@ class MLModel(ABC):
 
         num_input_dims = len(self.input.input.shape)
         num_datacube_dims = len(block.shape)
-        axes_to_squeeze = tuple(range(num_input_dims, num_datacube_dims))
+        if "batch" in self.input.input.dim_order:
+            axes_to_squeeze = tuple(range(num_input_dims, num_datacube_dims))
+        else:
+            axes_to_squeeze = (0, *tuple(range(num_input_dims + 1, num_datacube_dims)))
 
         if np.isnan(block).all():
             # empty block, do not write
@@ -898,7 +916,7 @@ class MLModel(ABC):
 
     @dask.delayed
     def predict_in_dask_worker(
-        self, tmp_dir_input: str, tmp_dir_output: str, dependence_obj
+        self, tmp_dir_input: str, tmp_dir_output: str, model_path: str, dependence_obj
     ):
         """
         Make a prediction inside a dask worker
@@ -911,8 +929,10 @@ class MLModel(ABC):
         files = in_dir_path.glob("*.npy")
         out_dir_path = Path(tmp_dir_output)
 
+        self._model_filepath = model_path
+
         self.make_predictions(
-            self._model_filepath,
+            model_path,
             files,
             out_dir_path,
             self.input.pre_processing_function,
@@ -922,7 +942,7 @@ class MLModel(ABC):
 
     @dask.delayed
     def predict_in_subprocess(
-        self, tmp_dir_input: str, tmp_dir_output: str, dependence_obj
+        self, tmp_dir_input: str, tmp_dir_output: str, model_path: str, dependence_obj
     ):
         """
         Make predictions inside a new subprocess
@@ -931,6 +951,8 @@ class MLModel(ABC):
         :param dependence_obj: lazy dask object to wait for.
         :return: bool
         """
+        self._model_filepath = model_path
+
         subproc_list = self.get_run_command(tmp_dir_input, tmp_dir_output)
 
         if self.input.pre_processing_function is not None:
@@ -1001,7 +1023,9 @@ class MLModel(ABC):
 
     def run_model(self, datacube: xr.DataArray) -> xr.DataArray:
         """
-        Reshape datacube according to ml specification, make a prediction, then re-order predicted output in a new datacube
+        Reshape datacube according to ml specification, make a prediction, then re-order predicted output in a new datacube.
+        This is a very generic approach that works but has its limitations, i.e. requires re-chunking (many small chunks are infeasable!!!)
+        Framework-specific subclasses are encouraged to overwrite this class and provide a more robust implementation
         :param datacube: Datacube to predict on
         :return: Datacube holding predicted values
         """
@@ -1023,9 +1047,6 @@ class MLModel(ABC):
         # with "batch" being wherever it needs to be to satisfy model input
         input_dc = self.reshape_dc_for_input(reordered_dc)
 
-        # batch size to be used during inference
-        n_batches = self.get_batch_size()
-
         # get dimension indices of each batch: tuple[tuple[int, ], ...]
         batch_indices = tuple(self.get_index_subsets(reordered_dc))
 
@@ -1037,7 +1058,6 @@ class MLModel(ABC):
 
         output_dim_mapping = self.get_datacube_output_dimension_mapping(input_dc)
 
-        dims_removed, dims_added = self.compare_input_output_dimensions(input_dc)
         chunk_out_shape = self.get_chunk_output_shape(input_dc)
 
         out_dtype = self.output.result.data_type
@@ -1083,11 +1103,11 @@ class MLModel(ABC):
         # Predict from the saved batches, save results to disk as .npy
         if MODEL_EXECUTION_MODE == "dask":
             executed = self.predict_in_dask_worker(
-                tmp_dir_input, tmp_dir_output, saved_data
+                tmp_dir_input, tmp_dir_output, self._model_filepath, saved_data
             )
         elif MODEL_EXECUTION_MODE == "subprocess":
             executed = self.predict_in_subprocess(
-                tmp_dir_input, tmp_dir_output, saved_data
+                tmp_dir_input, tmp_dir_output, self._model_filepath, saved_data
             )
         elif MODEL_EXECUTION_MODE == "slurm":
             executed = self.predict_in_slurm_job(
@@ -1102,14 +1122,24 @@ class MLModel(ABC):
 
         n_dims_not_in_output = len(self.get_input_dims_not_in_output(datacube))
 
+        if "batch" in self.input.input.dim_order:
+            # start at 1 as "batch" is preserved
+            new_axis = range(
+                1, len(self.get_model_out_shape(input_dc)) + n_dims_not_in_output
+            )
+        else:
+            # 1 as "batch" is added as 1st dimension
+            # add 1 to account for batch not in input_dims
+            new_axis = range(
+                1, len(self.get_model_out_shape(input_dc)) + n_dims_not_in_output + 1
+            )
+
         # Reconstruct the datacube from the saved predictions
         model_out = saved_data.map_blocks(
             self.load_prediction,
             dtype=out_dtype_np,
             chunks=chunk_out_shape,
-            new_axis=range(
-                1, len(self.output.result.shape) + n_dims_not_in_output
-            ),  # start at 1 as "batch" is preserved
+            new_axis=new_axis,
             tmp_dir_output=tmp_dir_output,
             dependence_object=executed,
             n_dims_to_embed_model_output_in=n_dims_not_in_output,
@@ -1234,6 +1264,42 @@ class MLModel(ABC):
             )
 
         return post_cube_reorderd
+
+    def fit_model(self, training_set: xr.DataArray) -> Self:
+        raise NotImplementedError(
+            "Fitting model is not available for this type of model."
+        )
+
+    @dask.delayed
+    def save_to_disk(self, model_name: str, out_dir: str, model_filepath: str) -> bool:
+        os.makedirs(out_dir, exist_ok=True)
+        out_dir = Path(out_dir)
+        model_filepath = Path(model_filepath)
+
+        out_model_filepath = out_dir / model_filepath.name
+
+        # move model file from cache folder to result folder
+        os.rename(model_filepath, out_model_filepath)
+
+        out_metadata_filepath = out_model_filepath.with_suffix(".json")
+
+        # write stac-mlm file
+        pystac.write_file(self._stac_item, False, str(out_metadata_filepath))
+
+        return True
+
+    def save_model(self, model_name: str) -> bool:
+        MODEL_RESULT_DIR = "./results/"
+        u_id = str(uuid.uuid4())
+        model_output_dir = MODEL_RESULT_DIR + u_id
+
+        self.model_metadata.mlm_name = model_name
+
+        saved = self.save_to_disk(model_name, model_output_dir, self._model_filepath)
+
+        # todo: handle href
+
+        return saved
 
     @abstractmethod
     def make_predictions(

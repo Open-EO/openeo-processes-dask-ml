@@ -1,43 +1,217 @@
 import logging
+import os
+import uuid
+import zipfile
+from pathlib import Path
+from typing import Optional
 
 import dask.array as da
+import numpy as np
+import pandas as pd
+import pystac_client
 import xarray as xr
 
+from opd_ml_dev_utils.get_datacube import load_stac, load_stac_with_cache
+
 logger = logging.getLogger(__name__)
+
+from openeo_pg_parser_networkx.pg_schema import BoundingBox, TemporalInterval
+
+RESULT_DIR = "./results/"
+
+
+def _get_stac_collections(stac_url: str):
+    client = pystac_client.Client.open(stac_url)
+    colls = client.get_collections()
+    col_names = [c.id for c in colls]
+    return col_names
+
+
+def _resolve_properties(data: dict) -> dict:
+    # converts {"lte1": {"process_id": "lte", "arguments": {"x": {"from_parameter": "value"}, "y": 50}, "result": True}}
+    # into {"lte": 50}
+
+    # We expect only one top-level key based on your example
+    for key, body in data.items():
+        process_id = body.get("process_id")
+
+        # Validate the operation type
+        if process_id not in {"lt", "lte", "gt", "gte"}:
+            raise NotImplementedError(f"Operation '{process_id}' is not supported.")
+
+        # Extract the 'y' value from arguments
+        # Using .get() and secondary .get() for safety
+        arguments = body.get("arguments", {})
+        value = arguments.get("y")
+
+        return {process_id: value}
+
+    return {}
 
 
 # # I/O processes aren't generic (yet), therefore have to custom define those.
 def load_collection(
-    id, spatial_extent, temporal_extent, bands=[], properties={}, **kwargs
+    id: str,
+    spatial_extent: BoundingBox,
+    temporal_extent: TemporalInterval,
+    bands: Optional[list[str]] = None,
+    properties: Optional[dict] = None,
+    **kwargs,
 ):
-    msg = (
-        "Process 'load_collection' not implemented. Returning random numbers instead. "
-        "Use process 'load_stac' for real observations instead."
+    data_backends = {
+        "aws": "https://earth-search.aws.element84.com/v1",
+        "cdse": "https://stac.dataspace.copernicus.eu/v1",
+        "planetarycomputer": "https://planetarycomputer.microsoft.com/api/stac/v1",
+    }
+
+    id_split = id.split("/")
+    if len(id_split) == 1:
+        backend = "planetarycomputer"
+        collection_id = id
+        url = data_backends["planetarycomputer"]
+    elif len(id_split) == 2:
+        backend, collection_id = id_split
+        try:
+            url = data_backends[backend]
+        except KeyError:
+            raise ValueError(
+                f"Data backend {backend} not available. Use one of the following: "
+                f"{', '.join(data_backends.keys())}"
+            )
+    else:
+        raise ValueError(
+            "Could not parse collection ID. Must either be the name of a collection, "
+            "or follow form <backend>/<collection-name>."
+        )
+
+    if collection_id not in _get_stac_collections(url):
+        raise ValueError(
+            f"Collection with ID {collection_id} not available on {backend}. "
+            f"Try another backend. "
+            f"Available backends are {', '.join(data_backends.keys())}"
+        )
+
+    collection_url = url + f"/collections/{collection_id}"
+
+    if properties:
+        resolved_properties = {
+            prop: _resolve_properties(properties[prop]["process_graph"])
+            for prop in properties
+        }
+    else:
+        resolved_properties = {}
+
+    dc = load_stac_with_cache(
+        collection_url, spatial_extent, temporal_extent, bands, resolved_properties
     )
-    logger.warning(msg)
 
-    n_time = 10
-    n_bands = 12
-    n_x = 1000
-    n_y = 1000
+    dc = dc.chunk({"time": 1, "bands": -1, "x": 200, "y": 200})
 
-    x = xr.DataArray(
-        da.random.random((n_time, n_bands, n_x, n_y)),
-        dims=["time", "band", "x", "y"],
-        coords={
-            "time": ["t_" + str(t) for t in range(n_time)],
-            "band": ["B" + str(b) for b in range(1, n_bands + 1)],
-            "x": range(n_x),
-            "y": range(n_y),
-        },
-    )
-    return x
+    return dc
 
 
-def save_result(data, format="netcdf", options=None):
-    # No generic implementation available, so need to implement locally!
-    if format != "netcdf":
-        logger.warning("Ignoring parameter 'format': Results will be saved as netcdf")
+def _save_netcdf(data: xr.DataArray, filename: str) -> bool:
     data.attrs = {}
-    data.to_netcdf("./result.nc")
+    data.to_netcdf(filename)
     return True
+
+
+def _save_geotiff(data: xr.DataArray, filename: str):
+    # basing this implementation on IBM's TensorLakeHouse getiff saver:
+    # https://github.com/IBM/tensorlakehouse-openeo-driver/blob/main/tensorlakehouse_openeo_driver/save_result.py
+    # Codee was modified to fit in here
+
+    # Save each slice of the DataArray as a separate GeoTIFF file
+    if data.openeo is not None and data.openeo.temporal_dims is not None:
+        temporal_dims = data.openeo.temporal_dims
+        if len(temporal_dims) > 0:
+            time_dim = temporal_dims[0]
+        else:
+            time_dim = None
+    else:
+        time_dim = "time"
+
+    if time_dim in data.dims:
+        time_size = len(data[time_dim])
+    else:
+        time_size = 1
+
+    driver = "COG"
+
+    # Note: The rio.to_raster() method only works on a 2-dimensional
+    # or 3-dimensional xarray.DataArray or a 2-dimensional xarray.Dataset.
+    if time_size == 1:
+        # destroy time dimension
+        if time_dim is not None:
+            data = data.isel({time_dim: 0})
+
+        data.rio.to_raster(
+            filename,
+            driver=driver,  # Write driver
+            reading_driver=driver,  # Read driver
+        )
+    else:
+        path = Path(filename)
+        parent_dir = path.parent
+        # save as zip instead of tif
+        filename = filename.replace(".gtiff", ".zip")
+        # self.format = "ZIP"
+        geotiff_files = list()
+        time_list = list(data[time_dim].values)
+        for index in range(0, time_size):
+            t: np.datetime64
+            t = time_list[index]
+            timestamp = pd.Timestamp(t)
+            timestamp_str = timestamp.strftime("%Y-%m-%dT%H-%M-%SZ")
+            unique_id = uuid.uuid4().hex
+            output_filename = (
+                parent_dir / f"{'openeo_output_'}_{timestamp_str}_{unique_id}.tif"
+            )
+            slice_array = data.isel({time_dim: index})
+            if not np.isnan(slice_array.data).all():
+                slice_array.rio.to_raster(output_filename)
+                geotiff_files.append(output_filename)
+        # Create a zip file and add GeoTIFF files to it
+        with zipfile.ZipFile(filename, "w", zipfile.ZIP_DEFLATED) as zipf:
+            for geotiff_file in geotiff_files:
+                zipf.write(geotiff_file)
+        # Remove the temporary GeoTIFF files
+        for geotiff_file in geotiff_files:
+            os.remove(geotiff_file)
+
+    return filename
+
+
+def _save_zarr(data: xr.DataArray, filename: str):
+    return data.to_zarr(filename, compute=False)
+
+
+def save_result(data: xr.DataArray, format: str, options=None):
+    # No generic implementation available, so need to implement locally!
+
+    print("Result Datacube")
+    print(data)
+
+    format = format.lower()
+
+    result_id = uuid.uuid4()
+    out_dir = RESULT_DIR + str(result_id) + "/"
+
+    os.makedirs(out_dir, exist_ok=True)
+
+    if format == "netcdf":
+        filename = out_dir + "result.nc"
+        saved = _save_netcdf(data, filename)
+
+    elif format == "gtiff":
+        filename = out_dir + "result.gtiff"
+        saved = _save_geotiff(data, filename)
+
+    elif format == "zarr":
+        filename = out_dir + "result.zarr"
+        saved = _save_zarr(data, filename)
+
+    else:
+        raise NotImplementedError(f"Format {format} not supported")
+
+    return saved

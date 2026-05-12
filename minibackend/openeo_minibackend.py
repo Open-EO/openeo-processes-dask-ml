@@ -56,6 +56,12 @@ register_processes(
     "openeo_processes_dask_ml.process_implementations", "openeo_processes_dask_ml.specs"
 )
 
+# override openeo-processes-dask implementations with my own
+register_processes(
+    "openeo_processes_dask_ml.process_implementations.overrides",
+    "openeo_processes_dask.specs",
+)
+
 
 process_registry["load_collection"] = Process(
     spec=load_collection_spec, implementation=load_collection

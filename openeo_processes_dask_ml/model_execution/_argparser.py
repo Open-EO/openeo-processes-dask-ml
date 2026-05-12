@@ -28,8 +28,8 @@ def get_parser() -> argparse.ArgumentParser:
     )
 
     parser.add_argument(
-        "torchscript_path",
-        help="Path to the torchscript model which will be used for predcition",
+        "model_filepath",
+        help="Path to the model filepath which will be used for predcition",
         type=existing_file,
     )
     parser.add_argument(
@@ -53,7 +53,8 @@ def get_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--n_cuda_devices",
         help="Number of CUDA devices to use in prediction task. "
-        "If left unset, all available devices will be used",
+        "If left unset, all available devices will be used. Not all model frameworks "
+        "offer CUDA support",
         required=False,
         type=int,
     )

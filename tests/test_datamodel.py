@@ -55,6 +55,12 @@ def test_get_model(mlm_item: pystac.Item, monkeypatch):
     d = DummyMLModel(mlm_item)
     model_file_path = d._get_model()
 
+    assert isinstance(model_file_path, Delayed)
+
+    model_file_path = model_file_path.compute()
+
+    assert isinstance(model_file_path, str)
+
     # assert that the method was called once
     mock_opener.assert_called_once()
 
@@ -580,9 +586,9 @@ def test_predict_in_dask_worker(mlm_item, monkeypatch, exec_mode):
     out_dir = "out_dir"
 
     if exec_mode == "dask":
-        out = d.predict_in_dask_worker(in_dir, out_dir, None)
+        out = d.predict_in_dask_worker(in_dir, out_dir, d._model_filepath, None)
     elif exec_mode == "subprocess":
-        out = d.predict_in_subprocess(in_dir, out_dir, None)
+        out = d.predict_in_subprocess(in_dir, out_dir, d._model_filepath, None)
     else:
         raise NotImplementedError("this should not be reached")
 

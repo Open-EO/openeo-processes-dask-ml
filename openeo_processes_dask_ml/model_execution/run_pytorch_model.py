@@ -7,17 +7,12 @@ import numpy as np
 import torch
 
 from openeo_processes_dask_ml.model_execution._argparser import get_parser
+from openeo_processes_dask_ml.model_execution._file_chunk import get_file_chunk
 from openeo_processes_dask_ml.process_implementations.utils.proc_expression_utils import (
     run_expression,
 )
 
 logger = logging.getLogger(__name__)
-
-
-def get_file_chunk(tmp_dir_input: Path, start_chunk: int, num_chunks: int):
-    all_files = list(tmp_dir_input.glob("*.npy"))
-    file_chunk = all_files[start_chunk::num_chunks]
-    return file_chunk
 
 
 def load_and_preprocess(file_path: Path, preproc_expression) -> torch.Tensor:
@@ -62,7 +57,7 @@ def predict(
     preproc_expression=None,
     postproc_expression=None,
 ):
-    device = f"cuda:{cuda_id}"
+    device = f"cuda:{cuda_id}" if torch.cuda.is_available() and cuda_id > -1 else "cpu"
     model = torch.jit.load(model_path).to(device).eval()
 
     for file_path in file_chunk:
@@ -98,28 +93,41 @@ def start_prediction_processes(
                 f"Not enough cuda devices: Requested {devices_available} "
                 f"but {n_cuda_devices} were requested."
             )
-    logger.error(
+    logger.info(
         f"CUDA Devices: {n_cuda_devices}",
     )
-    processes = []
-    for cuda_id in range(n_cuda_devices):
-        file_chunk = get_file_chunk(tmp_dir_input, cuda_id, n_cuda_devices)
-        p = Process(
-            target=predict,
-            args=(
-                cuda_id,
-                model_path,
-                tmp_dir_output,
-                file_chunk,
-                preproc_expression,
-                postproc_expression,
-            ),
-        )
-        p.start()
-        processes.append(p)
 
-    for p in processes:
-        p.join()
+    if n_cuda_devices == 0:
+        file_chunk = get_file_chunk(tmp_dir_input, 0, 1)
+        predict(
+            -1,
+            model_path,
+            tmp_dir_output,
+            file_chunk,
+            preproc_expression,
+            postproc_expression,
+        )
+
+    else:
+        processes = []
+        for cuda_id in range(n_cuda_devices):
+            file_chunk = get_file_chunk(tmp_dir_input, cuda_id, n_cuda_devices)
+            p = Process(
+                target=predict,
+                args=(
+                    cuda_id,
+                    model_path,
+                    tmp_dir_output,
+                    file_chunk,
+                    preproc_expression,
+                    postproc_expression,
+                ),
+            )
+            p.start()
+            processes.append(p)
+
+        for p in processes:
+            p.join()
 
     return True
 
@@ -130,11 +138,10 @@ if __name__ == "__main__":
     args = get_parser().parse_args()
 
     ex = start_prediction_processes(
-        args.torchscript_path,
+        args.model_filepath,
         args.input_dir,
         args.output_dir,
         args.preprocessing_function,
         args.postprocessing_function,
         args.n_cuda_devices,
     )
-    print(ex)
