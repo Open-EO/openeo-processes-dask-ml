@@ -13,12 +13,6 @@ AVAILABLE_ML_FRAMEWORKS: list[str] = []
 from .data_model import MLModel
 
 try:
-    from .data_model import ONNXModel
-
-    AVAILABLE_ML_FRAMEWORKS.append("ONNX")
-except ImportError:
-    pass
-try:
     from .data_model import TorchModel
 
     AVAILABLE_ML_FRAMEWORKS.append("PyTorch")
@@ -137,9 +131,7 @@ def load_stac_ml(
             f"at 0."
         )
 
-    if ml_framework.lower() == "onnx":
-        model_object = ONNXModel(mlm_item, model_asset, input_index, output_index)
-    elif ml_framework.lower() == "pytorch":
+    if ml_framework.lower() == "pytorch":
         model_object = TorchModel(mlm_item, model_asset, input_index, output_index)
     else:
         raise Exception(f"{ml_framework} runtime is not supported.")

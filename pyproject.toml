@@ -22,11 +22,6 @@ torch = [
     "torch==2.7.0"
 ]
 
-onnx = [
-    "onnx>=1.18.0",
-    "onnxruntime-gpu>=1.22.0"
-]
-
 scikit-learn = [
     "scikit-learn>=1.8.0"
 ]
