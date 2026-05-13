@@ -169,7 +169,10 @@ class RfClassModel(SkLearnModel):
         y = training_set_df[out_col_name]
 
         encoder = LabelEncoder()
-        y_enc = encoder.fit_transform(y)
+
+        # +1 because we want labels to start at 1 instead of 0
+        # for compatability with R backend
+        y_enc = encoder.fit_transform(y) + 1
 
         X_train, X_val, y_train, y_val = train_test_split(
             X, y_enc, test_size=0.15, random_state=self.seed
@@ -178,8 +181,9 @@ class RfClassModel(SkLearnModel):
         # Here we finally fit the model!!!
         model.fit(X_train.values, y_train)
 
-        self.output.classes = [
-            Classification.create(i, name=name)
+        # todo add this to the resulting (new) ml-object
+        classes = [
+            Classification.create(i + 1, name=name)
             for i, name in enumerate(encoder.classes_)
         ]
 
