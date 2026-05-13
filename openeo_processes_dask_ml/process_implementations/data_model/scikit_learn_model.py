@@ -182,10 +182,10 @@ class RfClassModel(SkLearnModel):
         model.fit(X_train.values, y_train)
 
         # todo add this to the resulting (new) ml-object
-        classes = [
-            Classification.create(i + 1, name=name)
-            for i, name in enumerate(encoder.classes_)
-        ]
+        # classes = [
+        #     Classification.create(i + 1, name=name)
+        #     for i, name in enumerate(encoder.classes_)
+        # ]
 
         with open(model_path, "wb") as file:
             pickle.dump(model, file)
@@ -194,7 +194,9 @@ class RfClassModel(SkLearnModel):
         report = classification_report(
             y_val,
             y_pred,
-            labels=range(len(encoder.classes_)),
+            labels=range(
+                1, len(encoder.classes_) + 1
+            ),  # start range at 1 and end at 1 more due to encodeed labels starting at 1
             target_names=encoder.classes_,
         )
         print("Classification Report: \n")
