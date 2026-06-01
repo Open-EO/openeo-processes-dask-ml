@@ -62,7 +62,7 @@ def _save_as_zarr(datacube: xr.DataArray, result_path: Path) -> bool:
 
 
 def _save_as_parquet(datacube: xr.DataArray, path: Path) -> bool:
-    pass
+    raise NotImplementedError("Saving of irregular embedding grids not implemented")
 
 
 def save_embeddings(datacube: xr.DataArray) -> bool:
