@@ -17,7 +17,9 @@ logger = logging.getLogger(__name__)
 
 from openeo_pg_parser_networkx.pg_schema import BoundingBox, TemporalInterval
 
-RESULT_DIR = "./results/"
+from openeo_processes_dask_ml.process_implementations.constants import (
+    OPENEO_RESULTS_PATH,
+)
 
 
 def _get_stac_collections(stac_url: str):
@@ -195,7 +197,7 @@ def save_result(data: xr.DataArray, format: str, options=None):
     format = format.lower()
 
     result_id = uuid.uuid4()
-    out_dir = RESULT_DIR + str(result_id) + "/"
+    out_dir = OPENEO_RESULTS_PATH + str(result_id) + "/"
 
     os.makedirs(out_dir, exist_ok=True)
 

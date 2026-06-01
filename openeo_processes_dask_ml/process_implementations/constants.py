@@ -29,6 +29,8 @@ TMP_DIR = os.environ.get("OPD_ML_TMP_DIR", "./tmp")
 
 USE_GPU = _get_boolean_env("OPD_ML_USE_GPU", True)
 
+OPENEO_RESULTS_PATH = os.environ.get("OPENEO_RESULTS_PATH", "results")
+
 # OPD_MODEL_EXECUTION_MODE Env discription
 #
 # if mode "dask" (default): make computation directly in ONE dask worker
