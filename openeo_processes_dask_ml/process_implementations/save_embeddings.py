@@ -89,13 +89,3 @@ def save_embeddings(datacube: xr.DataArray) -> bool:
         return _save_as_parquet(datacube, out_path)
 
     return False
-
-
-if __name__ == "__main__":
-    from dask import array as da
-
-    dc = xr.DataArray(
-        da.random.random((2, 5, 10, 10)), dims=["time", "embedding", "y", "x"]
-    )
-
-    save_embeddings(dc)
