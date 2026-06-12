@@ -5,13 +5,12 @@ import zipfile
 from pathlib import Path
 from typing import Optional
 
-import dask.array as da
 import numpy as np
 import pandas as pd
 import pystac_client
 import xarray as xr
 
-from opd_ml_dev_utils.get_datacube import load_stac, load_stac_with_cache
+from opd_ml_dev_utils.get_datacube import load_stac_with_cache
 
 logger = logging.getLogger(__name__)
 
@@ -197,7 +196,7 @@ def save_result(data: xr.DataArray, format: str, options=None):
     format = format.lower()
 
     result_id = uuid.uuid4()
-    out_dir = OPENEO_RESULTS_PATH + str(result_id) + "/"
+    out_dir = OPENEO_RESULTS_PATH + "/" + str(result_id) + "/"
 
     os.makedirs(out_dir, exist_ok=True)
 
