@@ -207,6 +207,3 @@ def save_embeddings(datacube: xr.DataArray) -> bool:
         return True
     else:
         raise Exception
-
-
-# todo: test this
