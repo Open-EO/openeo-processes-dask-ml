@@ -30,7 +30,7 @@ def _get_stac_item_template(_id: str) -> dict:
             "datetime": None,
             "start_datetime": None,
             "end_datetime": None,
-            "gsd": None,
+            # "gsd": None,
             "title": "EO-Embeddings",
             "description": "EO embeddings produced using openeo-processes-dask-ml",
             "emb:type": None,  # will be set later
@@ -50,7 +50,9 @@ def _get_stac_item_template(_id: str) -> dict:
     return d
 
 
-def _zip_results(source_dir: Path, zip_name: str = "result.zip") -> Path:
+def _zip_results(
+    zip_dir: Path, zarr_source_dir: Path, zip_name: str = "result.zarr.zip"
+) -> Path:
     """
     Archives all contents of `source_dir` into a zip file stored inside
     `source_dir`, then deletes everything except the created zip file.
@@ -62,12 +64,12 @@ def _zip_results(source_dir: Path, zip_name: str = "result.zip") -> Path:
     Returns:
         Path to the created zip file.
     """
-    source_path = source_dir.resolve()
+    source_path = zarr_source_dir.resolve()
 
     if not source_path.is_dir():
-        raise ValueError(f"{source_dir} is not a valid directory")
+        raise ValueError(f"{zarr_source_dir} is not a valid directory")
 
-    zip_path = source_path / zip_name
+    zip_path = zip_dir / zip_name
 
     # Create zip archive
     with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zf:
@@ -80,23 +82,15 @@ def _zip_results(source_dir: Path, zip_name: str = "result.zip") -> Path:
             arcname = item.relative_to(source_path)
             zf.write(item, arcname)
 
-    # Delete everything except the zip archive
-    for item in source_path.iterdir():
-        if item == zip_path:
-            continue
-
-        if item.is_dir():
-            shutil.rmtree(item)
-        else:
-            item.unlink()
+    shutil.rmtree(source_path)
 
     return zip_path
 
 
-def _save_as_zarr(datacube: xr.DataArray, result_path: Path) -> bool:
-    datacube.to_zarr(result_path, mode="w")
-    _zip_results(result_path)
-    return True
+def _save_as_zarr(datacube: xr.DataArray, result_dir: Path, zarr_dir: Path) -> Path:
+    datacube.to_zarr(zarr_dir, mode="w")
+    zip_path = _zip_results(result_dir, zarr_dir)
+    return zip_path
 
 
 def _set_stac_spatial_metadata_raster(stac_metadata: dict, datacube: xr.DataArray):
@@ -155,7 +149,14 @@ def _set_stac_embedding_metadata_raster(stac_metadata: dict, datacube: xr.DataAr
     stac_metadata["properties"]["emb:chip_layout"]["layout_type"] = "regular_grid"
 
 
-def _update_stac_metadata_raster_cube(stac_metadata: dict, datacube: xr.DataArray):
+def _set_stac_embedding_asset_metadata_raster(asset_metadata: dict, out_path: Path):
+    asset_metadata["href"] = str(out_path.absolute())
+    asset_metadata["type"] = "application/vnd+zarr"
+
+
+def _update_stac_metadata_raster_cube(
+    stac_metadata: dict, datacube: xr.DataArray, out_path: Path
+):
     _set_stac_spatial_metadata_raster(stac_metadata, datacube)
     _set_stac_time_metadata(stac_metadata, datacube)
     _set_stac_embedding_metadata_raster(stac_metadata, datacube)
@@ -183,22 +184,26 @@ def save_embeddings(datacube: xr.DataArray) -> bool:
         )
 
     _id = str(uuid4())
-    out_path = Path(OPENEO_RESULTS_PATH) / _id
-    metadata_path = out_path / f"{_id}.json"
+    result_dir = Path(OPENEO_RESULTS_PATH) / _id
+    zarr_out_path = result_dir / "result.zarr"
+    metadata_path = result_dir / "result.json"
 
     stac_metadata = _get_stac_item_template(_id)
 
     spatial_dims = dim_utils.get_spatial_dim_names(datacube)
     if len(spatial_dims) == 2:
         # this implies embeddings in a regular raster -> save as zarr
-        _update_stac_metadata_raster_cube(stac_metadata, datacube)
-        _save_as_zarr(datacube, out_path)
+        _update_stac_metadata_raster_cube(stac_metadata, datacube, result_dir)
+        zipped_zarr_path = _save_as_zarr(datacube, result_dir, zarr_out_path)
+        _set_stac_embedding_asset_metadata_raster(
+            stac_metadata["assets"]["embeddings"], zipped_zarr_path
+        )
         saved = True
 
     if "geometry" in datacube.dims or "geom" in datacube.dims:
         # this implieds embeddings in irregular raster -> save as geo-parquet
         _update_stac_metadata_vector_cube(stac_metadata, datacube)
-        _save_as_parquet(datacube, out_path)
+        _save_as_parquet(datacube, result_dir)
         saved = True
 
     if saved:
