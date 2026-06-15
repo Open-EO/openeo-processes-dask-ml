@@ -35,7 +35,7 @@ def _load_stac_from_local(uri: str) -> dict[str, Any]:
         return stac
 
 
-def load_stac_json(uri: str):
+def load_stac_json(uri: str) -> dict[str, Any]:
     if type(uri) is not str:
         raise ValueError("Type of URI parameter must be a string.")
 
