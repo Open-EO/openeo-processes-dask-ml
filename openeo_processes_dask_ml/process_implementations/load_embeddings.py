@@ -227,7 +227,7 @@ def _load_embedding_collection_tif(items: pystac.ItemCollection, asset_name: str
 
     for stac_item in items:
         path = stac_item.assets[asset_name].href
-        footprint = shapely.from_geojson(json.dumps(stac_item.geometry))  # .normalize()
+        footprint = shapely.from_geojson(json.dumps(stac_item.geometry)).normalize()
         time = _get_item_time(stac_item)
         emb_cube = _load_tiff(path)
 
