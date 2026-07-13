@@ -231,9 +231,6 @@ def _load_embedding_collection_tif(items: pystac.ItemCollection, asset_name: str
         time = _get_item_time(stac_item)
         emb_cube = _load_tiff(path)
 
-        # item_arrays.append(emb_cube)
-        # item_geoms.append(footprint)
-        # item_times.append(time)
         if time not in time_coords:
             time_coords.append(time)
             time_index = len(time_coords) - 1
