@@ -38,6 +38,25 @@ def _get_item_time(stac_item: pystac.Item) -> Datetime:
     raise ValueError("Could not determine the item's datetime")
 
 
+def _match_geom_in_list(
+    geometry_list: list[shapely.geometry.base.BaseGeometry],
+    geometry: shapely.geometry.base.BaseGeometry,
+    tolerance: float,
+) -> int | None:
+    """
+    Check weather a geometry is already present in a list of geometries, considering a
+    coordinate matching tolerance to accomate for float rounding errors
+    :param geometry_list: List of geometries to check
+    :param geometry: the polygon to check
+    :param tolerance: Tolerance to check
+    :return: index of polygon in list, None if polygon is not present in list
+    """
+    for i, p in enumerate(geometry_list):
+        if p.equals_exact(geometry, tolerance=tolerance):
+            return i
+    return None
+
+
 def load_zarr():
     # if url ends with .zip: download to cache, unzip
     # check number of data variables: if 1: load this, if more: check if one is called "embeddings"
@@ -205,22 +224,6 @@ def _load_embedding_item(
 
 
 def _load_embedding_collection_tif(items: pystac.ItemCollection, asset_name: str):
-    def get_approx_polygon_index(
-        poly_list: list[shapely.Polygon], polygon: shapely.Polygon, tolerance: float
-    ) -> int | None:
-        """
-        Check weather a polygon is already present in a list of polygons, considering a
-        coordinate matching tolerance to accomate for float rounding errors
-        :param poly_list: List of polygons to check
-        :param polygon: the polygon to check
-        :param tolerance: Tolerance to check
-        :return: index of polygon in list, None if polygon is not present in list
-        """
-        for i, p in enumerate(poly_list):
-            if p.equals_exact(polygon, tolerance=tolerance):
-                return i
-        return None
-
     item_arrays: list[list[xr.DataArray]] = []
     time_coords = []
     geom_coords = []
@@ -238,9 +241,7 @@ def _load_embedding_collection_tif(items: pystac.ItemCollection, asset_name: str
         else:
             time_index = time_coords.index(time)
 
-        footprint_index = get_approx_polygon_index(
-            geom_coords, footprint, tolerance=0.00001
-        )
+        footprint_index = _match_geom_in_list(geom_coords, footprint, tolerance=0.00001)
         if footprint_index is None:
             geom_coords.append(footprint)
             footprint_index = len(geom_coords) - 1
