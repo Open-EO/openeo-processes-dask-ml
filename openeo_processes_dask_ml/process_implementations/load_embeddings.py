@@ -20,6 +20,7 @@ from dask import array as da
 from dask.delayed import delayed
 from numpy.typing import NDArray
 from openeo_pg_parser_networkx.pg_schema import BoundingBox, TemporalInterval
+from openeo_processes_dask.process_implementations.cubes._filter import _reproject_bbox
 from openeo_processes_dask.process_implementations.exceptions import OpenEOException
 
 from openeo_processes_dask_ml.process_implementations.utils import stac_utils
@@ -348,9 +349,7 @@ def _parse_spatial_extent(
         if spatial_extent.crs is not None and not pyproj.crs.CRS(
             spatial_extent.crs
         ).equals("EPSG:4326"):
-            raise Exception(
-                "Currently, only a bounding box in in EPSG:4326 is supported"
-            )
+            spatial_extent_4326 = _reproject_bbox(spatial_extent, "EPSG:4326")
         bbox = [
             spatial_extent_4326.west,
             spatial_extent_4326.south,
