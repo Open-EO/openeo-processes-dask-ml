@@ -326,63 +326,45 @@ def _load_embedding_collection_parquet(
     return embedding_cube
 
 
-# parts of this function have been taken from this script
-# https://github.com/Open-EO/openeo-processes-dask/blob/main/openeo_processes_dask/process_implementations/cubes/load.py
-def _load_embedding_collection(
-    url: str,
-    spatial_extent: BoundingBox | None = None,
-    temporal_extent: TemporalInterval | None = None,
-    asset_name: str = "embeddings",
-) -> xr.DataArray:
-    collection = pystac.read_file(url)
+def _parse_temporal_extent(
+    temporal_extent: TemporalInterval | None, query_params: dict
+) -> None:
+    if temporal_extent is None:
+        return
 
-    catalog_url, collection_id = stac_utils.search_for_parent_catalog(url)
-    query_params = {"collections": [collection_id]}
-    stac_client = pystac_client.Client.open(catalog_url)
+    s = str(temporal_extent[0].to_numpy()) if temporal_extent[0] is not None else None
+    e = str(temporal_extent[1].to_numpy()) if temporal_extent[1] is not None else None
+    query_params["datetime"] = [s, e]
 
-    # parse temporal extent
-    if temporal_extent is not None:
-        start_date = (
-            str(temporal_extent[0].to_numpy())
-            if temporal_extent[0] is not None
-            else None
-        )
-        end_date = (
-            str(temporal_extent[1].to_numpy())
-            if temporal_extent[1] is not None
-            else None
-        )
-        query_params["datetime"] = [start_date, end_date]
 
-    # parse spatial extent
-    if spatial_extent is not None:
-        try:
-            spatial_extent_4326 = spatial_extent
-            if spatial_extent.crs is not None and not pyproj.crs.CRS(
-                spatial_extent.crs
-            ).equals("EPSG:4326"):
-                raise Exception(
-                    "Currently, only a bounding box in in EPSG:4326 is supported"
-                )
-            bbox = [
-                spatial_extent_4326.west,
-                spatial_extent_4326.south,
-                spatial_extent_4326.east,
-                spatial_extent_4326.north,
-            ]
-            query_params["bbox"] = bbox
-        except Exception as e:
-            raise Exception(f"Unable to parse the provided spatial extent: {e}")
+def _parse_spatial_extent(
+    spatial_extent: BoundingBox | None, query_params: dict
+) -> None:
+    if spatial_extent is None:
+        raise NotImplementedError("Spatial extent is needed")
 
-    items = stac_client.search(**query_params).item_collection()
+    try:
+        spatial_extent_4326 = spatial_extent
+        if spatial_extent.crs is not None and not pyproj.crs.CRS(
+            spatial_extent.crs
+        ).equals("EPSG:4326"):
+            raise Exception(
+                "Currently, only a bounding box in in EPSG:4326 is supported"
+            )
+        bbox = [
+            spatial_extent_4326.west,
+            spatial_extent_4326.south,
+            spatial_extent_4326.east,
+            spatial_extent_4326.north,
+        ]
+        query_params["bbox"] = bbox
+    except Exception as e:
+        raise Exception(f"Unable to parse the provided spatial extent: {e}")
 
-    if len(items) == 0:
-        raise Exception(
-            "Could not find any embeddings in the STAC collection for the provided "
-            "spatial bounding box and/or timespan."
-        )
 
-    # figure out the data format that all assets have in common
+def _get_collection_asset_media_type(
+    collection: pystac.Collection, items: pystac.ItemCollection, asset_name: str
+) -> str:
     if collection.item_assets:
         if asset_name not in collection.item_assets:
             raise Exception
@@ -403,6 +385,37 @@ def _load_embedding_collection(
             )
 
         emb_data_format = emb_data_formats[0]
+
+    return emb_data_format
+
+
+# parts of this function have been taken from this script
+# https://github.com/Open-EO/openeo-processes-dask/blob/main/openeo_processes_dask/process_implementations/cubes/load.py
+def _load_embedding_collection(
+    url: str,
+    spatial_extent: BoundingBox | None = None,
+    temporal_extent: TemporalInterval | None = None,
+    asset_name: str = "embeddings",
+) -> xr.DataArray:
+    collection = pystac.Collection.from_file(url)
+
+    catalog_url, collection_id = stac_utils.search_for_parent_catalog(url)
+    query_params = {"collections": [collection_id]}
+    stac_client = pystac_client.Client.open(catalog_url)
+
+    _parse_temporal_extent(temporal_extent, query_params)
+    _parse_spatial_extent(spatial_extent, query_params)
+
+    items = stac_client.search(**query_params).item_collection()
+
+    if len(items) == 0:
+        raise Exception(
+            "Could not find any embeddings in the STAC collection for the provided "
+            "spatial bounding box and/or timespan."
+        )
+
+    # figure out the data format that all assets have in common
+    emb_data_format = _get_collection_asset_media_type(collection, items, asset_name)
 
     # use media-type specific loader
     if emb_data_format.startswith("image/tif"):
