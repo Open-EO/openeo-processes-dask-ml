@@ -1,4 +1,5 @@
 import json
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime as Datetime
 
 import dask
@@ -14,18 +15,23 @@ import pystac_client
 import rioxarray
 import shapely
 import xarray as xr
-import xvec
+import xvec  # dont remove (even if your IDE says it is unused)
 from dask import array as da
 from dask.delayed import delayed
 from numpy.typing import NDArray
 from openeo_pg_parser_networkx.pg_schema import BoundingBox, TemporalInterval
-from openeo_processes_dask.process_implementations.data_model import VectorCube
 from openeo_processes_dask.process_implementations.exceptions import OpenEOException
 
 from openeo_processes_dask_ml.process_implementations.utils import stac_utils
 
 
 def _get_item_time(stac_item: pystac.Item) -> Datetime:
+    """
+    Extracts the time from a STAC item. Returns datetime property if present,
+    and start_datetime if datetime is not present
+    :param stac_item: The pystac.Item object
+    :return: datetime object
+    """
     if isinstance(stac_item.datetime, Datetime):
         return stac_item.datetime
 
@@ -223,6 +229,24 @@ def _load_embedding_item(
     raise TypeError(f"Loading embeddings of media-type {media_type} unsupported")
 
 
+def _construct_embedding_vector_cube(
+    item_arrays: list[list[xr.DataArray]],
+    geom_coords: list[shapely.Geometry],
+    time_coords: list[Datetime],
+) -> xr.DataArray:
+    single_temp_cubes = []
+    for single_timestep_arrays in item_arrays:
+        x = xr.concat(single_timestep_arrays, dim="geometry")
+        single_temp_cubes.append(x)
+
+    embedding_cube = xr.concat(single_temp_cubes, dim="time")
+    embedding_cube = embedding_cube.assign_coords(
+        {"geometry": geom_coords, "time": time_coords}
+    )
+    embedding_cube = embedding_cube.xvec.set_geom_indexes("geometry", crs="EPSG:4326")
+    return embedding_cube
+
+
 def _load_embedding_collection_tif(items: pystac.ItemCollection, asset_name: str):
     item_arrays: list[list[xr.DataArray]] = []
     time_coords = []
@@ -250,21 +274,56 @@ def _load_embedding_collection_tif(items: pystac.ItemCollection, asset_name: str
 
         item_arrays[time_index][footprint_index] = emb_cube
 
-    single_temp_cubes = []
-    for single_timestep_arrays in item_arrays:
-        x = xr.concat(single_timestep_arrays, dim="geometry")
-        single_temp_cubes.append(x)
-
-    embedding_cube = xr.concat(single_temp_cubes, dim="time")
-    embedding_cube = embedding_cube.assign_coords(
-        {"geometry": geom_coords, "time": time_coords}
+    embedding_cube = _construct_embedding_vector_cube(
+        item_arrays, geom_coords, time_coords
     )
-    embedding_cube = embedding_cube.xvec.set_geom_indexes("geometry", crs="EPSG:4326")
     return embedding_cube
 
 
-def load_embedding_collection_parquet():
-    pass
+def _load_embedding_collection_parquet(
+    items: pystac.ItemCollection, asset_name: str, bbox: BoundingBox | None
+) -> xr.DataArray:
+    # at this point we assume that one item only contains data from one timestep
+    item_datetimes = [_get_item_time(i) for i in items]
+
+    # Parallelized execution using a ThreadPoolExecutor
+    MAX_THREADS = 8  # Change this to your desired number of threads
+    with ThreadPoolExecutor(max_workers=MAX_THREADS) as executor:
+        per_item_cubes = list(
+            executor.map(lambda i: _load_embedding_item(i, asset_name, bbox), items)
+        )
+
+    # match and order embeddings by space and time
+    item_arrays: list[list[xr.DataArray]] = []
+    time_coords: list[Datetime] = []
+    geom_coords: list[shapely.geometry.base.BaseGeometry] = []
+    for item_time, item_cube in zip(item_datetimes, per_item_cubes):
+        if item_time not in time_coords:
+            time_coords.append(item_time)
+            time_index = len(time_coords) - 1
+            item_arrays.append(len(geom_coords) * [xr.DataArray()])
+        else:
+            time_index = time_coords.index(item_time)
+
+        # dc_data = item_cube.data
+        for dc_geom_coord_idx, dc_geom_coord in enumerate(
+            item_cube.coords["geometry"].values
+        ):
+            geom_idx = _match_geom_in_list(geom_coords, dc_geom_coord, 0.00001)
+            if geom_idx is None:
+                geom_coords.append(dc_geom_coord)
+                geom_idx = len(geom_coords) - 1
+                for time_step in item_arrays:
+                    time_step.append(xr.DataArray())
+
+            emb = item_cube.isel(geometry=dc_geom_coord_idx, drop=True)
+            item_arrays[time_index][geom_idx] = emb
+
+    # combine the small individual embedding cubes to
+    embedding_cube = _construct_embedding_vector_cube(
+        item_arrays, geom_coords, time_coords
+    )
+    return embedding_cube
 
 
 # parts of this function have been taken from this script
@@ -339,7 +398,9 @@ def _load_embedding_collection(
         all_same_media_type = all(emb_data_formats[0] == e for e in emb_data_formats)
 
         if not all_same_media_type:
-            raise Exception
+            raise Exception(
+                "The STAC embedding assets are not all of the same data format"
+            )
 
         emb_data_format = emb_data_formats[0]
 
@@ -347,8 +408,16 @@ def _load_embedding_collection(
     if emb_data_format.startswith("image/tif"):
         embedding_cube = _load_embedding_collection_tif(items, asset_name)
         return embedding_cube
-    else:
-        raise NotImplementedError(f"Cannot read embeddings of type {emb_data_format}")
+
+    if emb_data_format.startswith(
+        "application/x-parquet"
+    ) or emb_data_format.startswith("application/vnd.apache.parquet"):
+        embedding_cube = _load_embedding_collection_parquet(
+            items, asset_name, spatial_extent
+        )
+        return embedding_cube
+
+    raise NotImplementedError(f"Cannot read embeddings of type {emb_data_format}")
 
 
 def load_embeddings(
@@ -375,14 +444,3 @@ def load_embeddings(
     raise NotImplementedError(
         f"Loading of a STAC object of type {stac_obj.STAC_OBJECT_TYPE} is not supported"
     )
-
-    # if item:
-    # 1) check media type: if zarr: load with zarr, if geotiff: laod with rasterio (?), if gpq load as geoparquet
-
-    # if collection: filter by bbox and temporal
-    # checkl item-asset media type: if raster (e.g. zarr, geotiff) raise not implemented for now (?)
-    # if geoparquet: load all of them, sort out spatial and temporal to form datacube
-    # then cut (again) by bbox and temp
-
-    # reproject into a harmonized grid (wgs84)
-    # rename dimensions to harmonize everything: x,y,time,embedding
