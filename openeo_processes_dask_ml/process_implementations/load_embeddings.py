@@ -58,6 +58,7 @@ def _match_geom_in_list(
     :param tolerance: Tolerance to check
     :return: index of polygon in list, None if polygon is not present in list
     """
+    # todo: normaliez geoms from parquet
     for i, p in enumerate(geometry_list):
         if p.equals_exact(geometry, tolerance=tolerance):
             return i
@@ -92,20 +93,34 @@ def _prepare_geoparquet(
     emb_column_name: str,
     emb_size: int,
     emb_dtype: np.dtype,
+    to_epsg_4326: bool = False,
 ) -> tuple[NDArray[shapely.Geometry], da.Array]:
     @delayed
     def _stack_partition(series):
         # series is a pandas Series of numpy arrays -> 2D array
         return np.stack(series.to_numpy())
 
-    # todo: comvert both to wgs84 if it is not yet
-    gdf = dask_geopandas.read_parquet(path, columns=[geom_column_name, emb_column_name])
+    gdf: dask_geopandas.GeoDataFrame = dask_geopandas.read_parquet(
+        path, columns=[geom_column_name, emb_column_name]
+    )
 
     if bbox is not None:
-        xmin, ymin, xmax, ymax = bbox.west, bbox.south, bbox.east, bbox.north
+        if bbox.crs != "EPSG:4326":
+            bbox = _reproject_bbox(bbox, "EPSG:4326")
+
+        xmin, ymin, xmax, ymax = (
+            bbox.west,
+            bbox.south,
+            bbox.east,
+            bbox.north,
+        )
         bbox_geom = shapely.box(xmin, ymin, xmax, ymax)
         gdf_bbox = gpd.GeoDataFrame(geometry=[bbox_geom], crs="EPSG:4326")
+        gdf_bbox = gdf_bbox.to_crs(gdf.crs)
         gdf = dask_geopandas.sjoin(gdf, gdf_bbox, how="inner", predicate="intersects")
+
+    if to_epsg_4326:
+        gdf = gdf.to_crs(epsg=4326)
 
     # this does the trick of stacking the arrays, but is VERY slow
     # dask checks if the arrays are of same length and can be stacked -> SLOW
@@ -138,7 +153,9 @@ def _prepare_geoparquet(
     return geoms_array, embedding_array
 
 
-def _load_parquet_item(path: str, bbox: BoundingBox) -> xr.DataArray:
+def _load_parquet_item(
+    path: str, bbox: BoundingBox | None, to_epsg_4326: bool = False
+) -> xr.DataArray:
     # check geom column
     # check embedding column (embedding or embeddings?)
     # check if col is correct dtype (list? what float?)
@@ -164,7 +181,11 @@ def _load_parquet_item(path: str, bbox: BoundingBox) -> xr.DataArray:
         emb_size = emb_col_dtype.list_size
         emb_dtype = emb_col_dtype.value_type.to_pandas_dtype()
     else:
-        raise NotImplementedError("not supported yet")
+        print(emb_col_dtype)
+        raise NotImplementedError(
+            f"Embedding column data type is {str(emb_col_dtype)} which is unsupported."
+            f"Must be FixedSizeList"
+        )
 
     # get geometry column name
     geo_metadata_bytes = parquet_schema.metadata.get(b"geo")
@@ -175,24 +196,22 @@ def _load_parquet_item(path: str, bbox: BoundingBox) -> xr.DataArray:
         # Get the primary geometry column name
         geom_column_name = geo_metadata.get("primary_column")
     else:
-        # not a valid geoparquet, let's try to find a geom column anyway
-        pot_geom_col_names = ["geometry", "geom"]
-        for p in pot_geom_col_names:
-            if p in col_names:
-                geom_column_name = p
-                break
-        else:
-            raise Exception(
-                f"Coule not identify geometry column. Provide a valid GeoParquet file "
-                f"or name the geometry column one of {','.join(pot_geom_col_names)}"
-            )
+        raise Exception(
+            "The provided parquet parquet file is not a valid GeoParquet, as no 'geo' "
+            "metadata could be found."
+        )
+
+    if to_epsg_4326:
+        crs = "EPSG:4326"
+    else:
+        crs = pyproj.CRS.from_json_dict(geo_metadata["columns"]["geometry"]["crs"])
 
     geom_coords, emb_values = _prepare_geoparquet(
-        path, bbox, geom_column_name, emb_column_name, emb_size, emb_dtype
+        path, bbox, geom_column_name, emb_column_name, emb_size, emb_dtype, to_epsg_4326
     )
     emb_cube = xr.DataArray(
-        emb_values, dims=["geometry", "embs"], coords={"geometry": geom_coords}
-    ).xvec.set_geom_indexes("geometry", crs="EPSG:4326")
+        emb_values, dims=["geometry", "embedding"], coords={"geometry": geom_coords}
+    ).xvec.set_geom_indexes("geometry", crs=crs)
 
     emb_values.visualize("out.png")
 
@@ -200,7 +219,10 @@ def _load_parquet_item(path: str, bbox: BoundingBox) -> xr.DataArray:
 
 
 def _load_embedding_item(
-    stac_item: pystac.Item, asset_name: str, bbox: BoundingBox | None
+    stac_item: pystac.Item,
+    asset_name: str,
+    bbox: BoundingBox | None,
+    to_epsg_4326: bool = False,
 ) -> xr.DataArray:
     embedding_asset = stac_item.assets[asset_name]
     media_type = embedding_asset.media_type
@@ -210,7 +232,7 @@ def _load_embedding_item(
     # if its it zarr, it can be spatial or spatio-temporal
 
     # load geotif file
-    if media_type.startswith("image/tif"):
+    if media_type.startswith("image/tif"):  # todo: to_epsg_4326, bbox
         footprint = shapely.from_geojson(json.dumps(stac_item.geometry))
         time = _get_item_time(stac_item)
         emb_cube = _load_tiff(path)
@@ -222,7 +244,7 @@ def _load_embedding_item(
     if media_type.startswith("application/x-parquet") or media_type.startswith(
         "application/vnd.apache.parquet"
     ):
-        emb_cube = _load_parquet_item(path, bbox=bbox)
+        emb_cube = _load_parquet_item(path, bbox, to_epsg_4326)
         return emb_cube
 
     # if parquet: load_parquet
@@ -281,17 +303,32 @@ def _load_embedding_collection_tif(items: pystac.ItemCollection, asset_name: str
     return embedding_cube
 
 
+# todo
+def _figure_out_proj_necessary(
+    collection: pystac.Collection, items: pystac.ItemCollection
+) -> bool:
+    # inspect collection for proj:epsg -> if present, return False
+    # inspect all items for proj: epsg -> if present and all the same: return True
+    # inspect geoparquet for crs: load geoparque headers, if all the same: return True
+    # todo
+    return True
+
+
 def _load_embedding_collection_parquet(
     items: pystac.ItemCollection, asset_name: str, bbox: BoundingBox | None
 ) -> xr.DataArray:
     # at this point we assume that one item only contains data from one timestep
     item_datetimes = [_get_item_time(i) for i in items]
 
+    to_epsg_4326 = True  # todo: figure out from all items if this is really needed
+
     # Parallelized execution using a ThreadPoolExecutor
     MAX_THREADS = 8  # Change this to your desired number of threads
     with ThreadPoolExecutor(max_workers=MAX_THREADS) as executor:
         per_item_cubes = list(
-            executor.map(lambda i: _load_embedding_item(i, asset_name, bbox), items)
+            executor.map(
+                lambda i: _load_embedding_item(i, asset_name, bbox, to_epsg_4326), items
+            )
         )
 
     # match and order embeddings by space and time
@@ -345,16 +382,11 @@ def _parse_spatial_extent(
         raise NotImplementedError("Spatial extent is needed")
 
     try:
-        spatial_extent_4326 = spatial_extent
-        if spatial_extent.crs is not None and not pyproj.crs.CRS(
-            spatial_extent.crs
-        ).equals("EPSG:4326"):
-            spatial_extent_4326 = _reproject_bbox(spatial_extent, "EPSG:4326")
         bbox = [
-            spatial_extent_4326.west,
-            spatial_extent_4326.south,
-            spatial_extent_4326.east,
-            spatial_extent_4326.north,
+            spatial_extent.west,
+            spatial_extent.south,
+            spatial_extent.east,
+            spatial_extent.north,
         ]
         query_params["bbox"] = bbox
     except Exception as e:
@@ -448,7 +480,7 @@ def load_embeddings(
         raise OpenEOException("Provided URL does not point to a valid STAC object")
 
     if isinstance(stac_obj, pystac.Item):
-        return _load_embedding_item(stac_obj, asset_name, spatial_extent)
+        return _load_embedding_item(stac_obj, asset_name, spatial_extent, False)
     elif isinstance(stac_obj, pystac.Collection):
         return _load_embedding_collection(
             url, spatial_extent, temporal_extent, asset_name
