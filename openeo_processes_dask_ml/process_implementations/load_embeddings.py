@@ -303,24 +303,61 @@ def _load_embedding_collection_tif(items: pystac.ItemCollection, asset_name: str
     return embedding_cube
 
 
-# todo
-def _figure_out_proj_necessary(
-    collection: pystac.Collection, items: pystac.ItemCollection
+def _crs_of(href: str) -> str:
+    """Extract the CRS (as a stable string) from a geoparquet file's 'geo' metadata."""
+    schema = pq.read_schema(href)
+    meta = schema.metadata or {}
+    if b"geo" not in meta:
+        raise Exception("Non-Geoparquet files were encountered.")
+    geo = json.loads(meta[b"geo"])
+    col = geo["columns"][geo.get("primary_column", "geometry")]
+    # crs may be absent (defaults to OGC:CRS84), a dict (PROJJSON) or a string
+    return json.dumps(col.get("crs"), sort_keys=True)
+
+
+def _proj_necessary(
+    collection: pystac.Collection, items: pystac.ItemCollection, asset_name
 ) -> bool:
-    # inspect collection for proj:epsg -> if present, return False
-    # inspect all items for proj: epsg -> if present and all the same: return True
-    # inspect geoparquet for crs: load geoparque headers, if all the same: return True
-    # todo
-    return True
+    PROJ_CODE = "proj:code"
+    # --- Step 1: collection-level proj:code ---
+    if PROJ_CODE in (collection.extra_fields or {}):
+        return False
+    summaries = collection.summaries.to_dict() if collection.summaries else {}
+    if PROJ_CODE in summaries:
+        return False
+
+    # --- Step 2: item-level proj:code ---
+    codes = []
+    for item in items:
+        if PROJ_CODE not in item.properties:
+            codes = None  # not present on all items -> fall through to step 3
+            break
+        codes.append(item.properties[PROJ_CODE])
+
+    if codes:  # present on every item (and at least one item)
+        return len(set(codes)) != 1
+
+    # --- Step 3: inspect geoparquet CRS ---
+    crs_values = set()
+    for item in items:
+        asset = item.assets.get(asset_name)
+        if asset is None:
+            raise Exception("Non-Geoparquet files were encountered.")
+        crs_values.add(_crs_of(asset.href))
+
+    return len(crs_values) != 1
 
 
 def _load_embedding_collection_parquet(
-    items: pystac.ItemCollection, asset_name: str, bbox: BoundingBox | None
+    collection: pystac.Collection,
+    items: pystac.ItemCollection,
+    asset_name: str,
+    bbox: BoundingBox | None,
 ) -> xr.DataArray:
     # at this point we assume that one item only contains data from one timestep
     item_datetimes = [_get_item_time(i) for i in items]
 
-    to_epsg_4326 = True  # todo: figure out from all items if this is really needed
+    to_epsg_4326 = _proj_necessary(collection, items, asset_name)
 
     # Parallelized execution using a ThreadPoolExecutor
     MAX_THREADS = 8  # Change this to your desired number of threads
@@ -424,12 +461,11 @@ def _get_collection_asset_media_type(
 # https://github.com/Open-EO/openeo-processes-dask/blob/main/openeo_processes_dask/process_implementations/cubes/load.py
 def _load_embedding_collection(
     url: str,
+    collection: pystac.Collection,
     spatial_extent: BoundingBox | None = None,
     temporal_extent: TemporalInterval | None = None,
     asset_name: str = "embeddings",
 ) -> xr.DataArray:
-    collection = pystac.Collection.from_file(url)
-
     catalog_url, collection_id = stac_utils.search_for_parent_catalog(url)
     query_params = {"collections": [collection_id]}
     stac_client = pystac_client.Client.open(catalog_url)
@@ -457,7 +493,7 @@ def _load_embedding_collection(
         "application/x-parquet"
     ) or emb_data_format.startswith("application/vnd.apache.parquet"):
         embedding_cube = _load_embedding_collection_parquet(
-            items, asset_name, spatial_extent
+            collection, items, asset_name, spatial_extent
         )
         return embedding_cube
 
@@ -483,7 +519,7 @@ def load_embeddings(
         return _load_embedding_item(stac_obj, asset_name, spatial_extent, False)
     elif isinstance(stac_obj, pystac.Collection):
         return _load_embedding_collection(
-            url, spatial_extent, temporal_extent, asset_name
+            url, stac_obj, spatial_extent, temporal_extent, asset_name
         )
     raise NotImplementedError(
         f"Loading of a STAC object of type {stac_obj.STAC_OBJECT_TYPE} is not supported"
