@@ -6,6 +6,8 @@ import pyproj
 import pystac
 import pytest
 import shapely
+import xarray as xr
+from dask import array as da
 from openeo_pg_parser_networkx.pg_schema import BoundingBox, TemporalInterval
 
 from openeo_processes_dask_ml.process_implementations import load_embeddings
@@ -246,11 +248,63 @@ def test_load_parquet_item_without_bbox_with_transform():
 
 
 def test_load_parquet_item_with_bbox_without_transform():
-    pass
+    bbox = BoundingBox(
+        east=7.626471282171344,
+        south=51.95677890608484,
+        west=7.628845144763302,
+        north=51.95733618982899,
+        crs="EPSG:4326",
+    )
+
+    path = "tests/data/embeddings.parquet"
+    poly_utm: shapely.Polygon = shapely.box(404000, 5756000, 406000, 5758000)
+    poly_wgs84 = shapely.box(0, 0, 180, 90)
+
+    e_dc = load_embeddings._load_parquet_item(path, bbox, False)
+
+    assert "geometry" in e_dc.dims
+    assert "embedding" in e_dc.dims
+    assert e_dc.shape == (2, 4)
+    assert e_dc.dtype == np.float32
+    assert isinstance(e_dc.data, da.Array)
+    geom_coords = e_dc.coords["geometry"].values
+    assert np.all([isinstance(x, shapely.Point) for x in geom_coords])
+
+    inside = poly_utm.contains(geom_coords)
+    outside = ~poly_wgs84.contains(geom_coords)
+    assert inside.all()
+    assert outside.all()
+    assert e_dc.geometry.crs.equals(pyproj.CRS("EPSG:32632"))
 
 
 def test_load_parquet_item_with_bbox_with_transform():
-    pass
+    bbox = BoundingBox(
+        east=7.626471282171344,
+        south=51.95677890608484,
+        west=7.628845144763302,
+        north=51.95733618982899,
+        crs="EPSG:4326",
+    )
+
+    path = "tests/data/embeddings.parquet"
+    poly_utm: shapely.Polygon = shapely.box(404000, 5756000, 406000, 5758000)
+    poly_wgs84 = shapely.box(0, 0, 180, 90)
+
+    e_dc = load_embeddings._load_parquet_item(path, bbox, True)
+
+    assert "geometry" in e_dc.dims
+    assert "embedding" in e_dc.dims
+    assert e_dc.shape == (2, 4)
+    assert e_dc.dtype == np.float32
+    assert isinstance(e_dc.data, da.Array)
+    geom_coords = e_dc.coords["geometry"].values
+    assert np.all([isinstance(x, shapely.Point) for x in geom_coords])
+
+    outside = ~poly_utm.contains(geom_coords)
+    inside = poly_wgs84.contains(geom_coords)
+    assert inside.all()
+    assert outside.all()
+    assert e_dc.geometry.crs.equals(pyproj.CRS("EPSG:4326"))
 
 
 def test_load_embedding_item_tiff():
@@ -264,3 +318,27 @@ def test_load_embedding_item_parquet():
     # with and without bbox in different CRS
     # CRS of embeddings must be unchanged
     pass
+
+
+def test_construct_embedding_vector_cube():
+    x = xr.DataArray(da.random.random(4))
+    i = [[x, x], [x, x], [x, xr.DataArray()]]
+    geoms = [shapely.Point(0, 0), shapely.Point(1, 1)]
+    times = [
+        datetime.fromisoformat("2026-01-01"),
+        datetime.fromisoformat("2026-01-02"),
+        datetime.fromisoformat("2026-01-03"),
+    ]
+
+    e_dc = load_embeddings._construct_embedding_vector_cube(i, geoms, times)
+
+    assert "geometry" in e_dc.dims
+    assert "time" in e_dc.dims
+    assert e_dc.shape == (3, 2, 4)
+    assert isinstance(e_dc.data, da.Array)
+    assert np.isnan(
+        e_dc.isel(time=2, geometry=1).compute()
+    ).all()  # check nans are preserved
+    assert not np.isnan(
+        e_dc.isel(time=1, geometry=1).compute()
+    ).all()  # check other is not nan
