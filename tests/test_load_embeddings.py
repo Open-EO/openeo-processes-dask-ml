@@ -342,3 +342,14 @@ def test_construct_embedding_vector_cube():
     assert not np.isnan(
         e_dc.isel(time=1, geometry=1).compute()
     ).all()  # check other is not nan
+
+
+def test_crs_of():
+    path = "tests/data/embeddings.parquet"
+    s = load_embeddings._crs_of(path)
+    assert s is not None
+    assert isinstance(s, str)
+
+    path = "tests/data/non-geoparquet.parquet"
+    with pytest.raises(Exception):
+        load_embeddings._crs_of(path)
