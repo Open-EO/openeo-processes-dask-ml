@@ -1,0 +1,69 @@
+{
+    "stac_version": "1.1.0",
+    "stac_extensions": [
+        "https://stac-extensions.github.io/embeddings/v0.0.1/schema.json"
+    ],
+    "type": "Feature",
+    "id": "item-tif",
+    "collection": "e2s_embeddings",
+    "links": [
+        {
+            "rel": "self",
+            "href": ".item_tif.json"
+        }
+    ],
+    "bbox": [
+        -105.00023633456581,
+        40.56274601714943,
+        -104.96998551209674,
+        40.585812712234244
+    ],
+    "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+            [
+                [
+                    -105.0002362534332,
+                    40.562749913065474
+                ],
+                [
+                    -105.00023633456581,
+                    40.585812712234244
+                ],
+                [
+                    -104.96998551209674,
+                    40.585808813163545
+                ],
+                [
+                    -104.96999581593687,
+                    40.56274601714943
+                ],
+                [
+                    -105.0002362534332,
+                    40.562749913065474
+                ]
+            ]
+        ]
+    },
+    "properties": {
+        "datetime": "2024-08-06T10:37:20.22Z",
+        "title": "EO-Embeddings",
+        "description": "asdf",
+        "emb:type": "patch",
+        "emb:dimensions": 768,
+        "emb:chip_layout": {
+            "layout_type": "regular_grid"
+        },
+        "data_type": "float32"
+    },
+    "assets": {
+        "embeddings": {
+            "href": "tests/data/embedding_1x1.tif",
+            "title": "embeddings",
+            "type": "image/tif",
+            "roles": [
+                "embedding"
+            ]
+        }
+    }
+}

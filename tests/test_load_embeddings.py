@@ -308,16 +308,87 @@ def test_load_parquet_item_with_bbox_with_transform():
 
 
 def test_load_embedding_item_tiff():
-    # 1px, 2px
-    # with and without bbox, different CRS
-    # geom in returning DC must be 4326
-    pass
+    item = pystac.Item.from_file("tests/data/item_tif.json")
+    asset_name = "embeddings"
+
+    e_dc = load_embeddings._load_embedding_item(item, asset_name, None)
+    assert e_dc.shape == (1, 1, 768)
+    assert "geometry" in e_dc.dims
+    assert "time" in e_dc.dims
+    assert "embedding" in e_dc.dims
+    assert isinstance(e_dc.data, da.Array)
 
 
-def test_load_embedding_item_parquet():
-    # with and without bbox in different CRS
-    # CRS of embeddings must be unchanged
-    pass
+@pytest.mark.parametrize("reproject_to_4326", (True, False))
+def test_load_embedding_item_parquet_no_bbox(reproject_to_4326: bool):
+    item = pystac.Item.from_file("tests/data/item_pq.json")
+    asset_name = "embeddings"
+
+    e_dc = load_embeddings._load_embedding_item(
+        item, asset_name, None, reproject_to_4326
+    )
+
+    assert e_dc.shape == (4, 4)
+    assert "geometry" in e_dc.dims
+    assert "embedding" in e_dc.dims
+    assert isinstance(e_dc.data, da.Array)
+
+    poly_utm: shapely.Polygon = shapely.box(404000, 5756000, 406000, 5758000)
+    poly_wgs84 = shapely.box(0, 0, 180, 90)
+
+    geom_coords = e_dc.coords["geometry"].values
+
+    if reproject_to_4326:
+        assert e_dc.geometry.crs.equals(pyproj.CRS("EPSG:4326"))
+        outside = ~poly_utm.contains(geom_coords)
+        inside = poly_wgs84.contains(geom_coords)
+    else:
+        assert e_dc.geometry.crs.equals(pyproj.CRS("EPSG:32632"))
+        inside = poly_utm.contains(geom_coords)
+        outside = ~poly_wgs84.contains(geom_coords)
+
+    assert inside.all()
+    assert outside.all()
+
+
+@pytest.mark.parametrize("reproject_to_4326", (True, False))
+def test_load_embedding_item_parquet_with_bbox(reproject_to_4326: bool):
+    bbox = BoundingBox(
+        east=7.626471282171344,
+        south=51.95677890608484,
+        west=7.628845144763302,
+        north=51.95733618982899,
+        crs="EPSG:4326",
+    )
+
+    item = pystac.Item.from_file("tests/data/item_pq.json")
+    asset_name = "embeddings"
+
+    e_dc = load_embeddings._load_embedding_item(
+        item, asset_name, bbox, reproject_to_4326
+    )
+
+    assert e_dc.shape == (2, 4)
+    assert "geometry" in e_dc.dims
+    assert "embedding" in e_dc.dims
+    assert isinstance(e_dc.data, da.Array)
+
+    poly_utm: shapely.Polygon = shapely.box(404000, 5756000, 406000, 5758000)
+    poly_wgs84 = shapely.box(0, 0, 180, 90)
+
+    geom_coords = e_dc.coords["geometry"].values
+
+    if reproject_to_4326:
+        assert e_dc.geometry.crs.equals(pyproj.CRS("EPSG:4326"))
+        outside = ~poly_utm.contains(geom_coords)
+        inside = poly_wgs84.contains(geom_coords)
+    else:
+        assert e_dc.geometry.crs.equals(pyproj.CRS("EPSG:32632"))
+        inside = poly_utm.contains(geom_coords)
+        outside = ~poly_wgs84.contains(geom_coords)
+
+    assert inside.all()
+    assert outside.all()
 
 
 def test_construct_embedding_vector_cube():
