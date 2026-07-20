@@ -13,6 +13,29 @@ from openeo_pg_parser_networkx.pg_schema import BoundingBox, TemporalInterval
 from openeo_processes_dask_ml.process_implementations import load_embeddings
 
 
+def _make_item(item_id: str, date: datetime, polygon_coords) -> pystac.Item:
+    """Build a minimal pystac.Item with the given {asset_name: media_type} assets."""
+    item = pystac.Item(
+        id=item_id,
+        geometry={
+            "type": "Polygon",
+            "coordinates": polygon_coords,
+        },
+        bbox=[0, 0, 1, 1],
+        datetime=date,
+        properties={},
+    )
+    item.add_asset(
+        "embedding",
+        pystac.Asset(href="tests/data/embedding_1x1.tif", media_type="image/tif"),
+    )
+    return item
+
+
+def _make_item_collection(items: list[pystac.Item]) -> pystac.ItemCollection:
+    return pystac.ItemCollection(items)
+
+
 def test_get_item_time():
     dt = datetime.fromisoformat("2026-07-15T02:54:14-12:00")
     start_dt = datetime.fromisoformat("2015-07-15T02:54:14-12:00")
@@ -424,3 +447,34 @@ def test_crs_of():
     path = "tests/data/non-geoparquet.parquet"
     with pytest.raises(Exception):
         load_embeddings._crs_of(path)
+
+
+def test_load_collection_tif():
+    poly_coords = [
+        [[[0, 0], [0, 1], [1, 1], [1, 0], [0, 0]]],
+        [[[0, 1], [0, 2], [1, 2], [1, 2], [0, 1]]],
+        [[[1, 0], [1, 1], [2, 1], [2, 0], [1, 0]]],
+        [[[1, 1], [1, 2], [2, 2], [2, 1], [1, 1]]],
+    ]
+    dates = [datetime(2020, 6, 1), datetime(2020, 7, 1)]
+
+    items = []
+    i = 0
+    for poly in poly_coords:
+        for date in dates:
+            items.append(_make_item(str(i), date, poly))
+            i += 1
+    item_collection = _make_item_collection(items)
+
+    e_dc = load_embeddings._load_embedding_collection_tif(item_collection, "embedding")
+
+    assert e_dc.shape == (2, 4, 768)
+    assert "geometry" in e_dc.dims
+    assert "time" in e_dc.dims
+    assert "embedding" in e_dc.dims
+
+    assert all([isinstance(i, shapely.Polygon) for i in e_dc.coords["geometry"].values])
+    assert all([isinstance(i, np.datetime64) for i in e_dc.coords["time"].values])
+    assert isinstance(e_dc.data, da.Array)
+
+    assert e_dc.geometry.crs.equals(pyproj.CRS("EPSG:4326"))
