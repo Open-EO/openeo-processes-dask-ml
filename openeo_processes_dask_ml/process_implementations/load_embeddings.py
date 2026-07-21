@@ -212,9 +212,6 @@ def _load_parquet_item(
     emb_cube = xr.DataArray(
         emb_values, dims=["geometry", "embedding"], coords={"geometry": geom_coords}
     ).xvec.set_geom_indexes("geometry", crs=crs)
-
-    emb_values.visualize("out.png")
-
     return emb_cube
 
 
