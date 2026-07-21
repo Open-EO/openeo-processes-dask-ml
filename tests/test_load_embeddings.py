@@ -478,3 +478,65 @@ def test_load_collection_tif():
     assert isinstance(e_dc.data, da.Array)
 
     assert e_dc.geometry.crs.equals(pyproj.CRS("EPSG:4326"))
+
+
+@pytest.mark.vcr()
+def test_load_embedding_collection_tif():
+    # this should work regardless of a local STAC running
+    # the VCR module records and replays the request
+    url = "http://localhost:8082/collections/terramind_embeddings"
+    bbox = BoundingBox(
+        west=8.38, south=48.02, east=8.38 + 2 * 0.04, north=48.02 + 2 * 0.04
+    )
+    time = TemporalInterval(["2025-01-01", "2025-01-03"])
+
+    coll = pystac.Collection.from_file(url)
+    asset_name = "embeddings"
+
+    e_dc = load_embeddings._load_embedding_collection(url, coll, bbox, time, asset_name)
+
+    assert e_dc.shape == (3, 9, 768)
+    assert "geometry" in e_dc.dims
+    assert "time" in e_dc.dims
+    assert "embedding" in e_dc.dims
+    assert isinstance(e_dc.data, da.Array)
+
+
+@pytest.mark.vcr()
+def test_load_embeddings_tif_collection():
+    # this should work regardless of a local STAC running
+    # the VCR module recorded and now replays the request
+    url = "http://localhost:8082/collections/terramind_embeddings"
+    bbox = BoundingBox(
+        west=8.38, south=48.02, east=8.38 + 2 * 0.04, north=48.02 + 2 * 0.04
+    )
+    time = TemporalInterval(["2025-01-01", "2025-01-02"])
+    asset_name = "embeddings"
+
+    e_dc = load_embeddings.load_embeddings(url, bbox, time, asset_name)
+
+    assert e_dc.shape == (2, 9, 768)
+    assert "geometry" in e_dc.dims
+    assert "time" in e_dc.dims
+    assert "embedding" in e_dc.dims
+    assert isinstance(e_dc.data, da.Array)
+
+
+@pytest.mark.vcr()
+def test_load_embeddings_tif_singleitem():
+    # this should work regardless of a local STAC running
+    # the VCR module recorded and now replays the request
+    url = (
+        "http://localhost:8082/collections/terramind_embeddings/items/"
+        "S2A_MSIL2A_20170102T175732_N0500_R141_T13TEF_20230926T044006__"
+        "0-256_10724-10980_embedding_74"
+    )
+    asset_name = "embeddings"
+
+    # todo: time dimension for single item
+    e_dc = load_embeddings.load_embeddings(url, asset_name=asset_name)
+    assert e_dc.shape == (1, 1, 768)
+    assert "geometry" in e_dc.dims
+    assert "embedding" in e_dc.dims
+    assert "time" in e_dc.dims
+    assert isinstance(e_dc.data, da.Array)
