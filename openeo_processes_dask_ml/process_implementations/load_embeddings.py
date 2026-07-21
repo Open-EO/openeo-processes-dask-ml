@@ -53,12 +53,11 @@ def _match_geom_in_list(
     """
     Check weather a geometry is already present in a list of geometries, considering a
     coordinate matching tolerance to accomate for float rounding errors
-    :param geometry_list: List of geometries to check
-    :param geometry: the polygon to check
+    :param geometry_list: List of NORMALIZED geometries to check
+    :param geometry: the NORMALIZED geometry to check
     :param tolerance: Tolerance to check
     :return: index of polygon in list, None if polygon is not present in list
     """
-    # todo: normaliez geoms from parquet
     for i, p in enumerate(geometry_list):
         if p.equals_exact(geometry, tolerance=tolerance):
             return i
@@ -139,7 +138,7 @@ def _prepare_geoparquet(
     # This ALSO gives us the exact row count of every partition.
     geoms_by_part = dask.compute(*geom_parts)  # list of pandas Series
     lengths = [len(g) for g in geoms_by_part]  # known rows per partition
-    geoms_array = np.concatenate([g.to_numpy() for g in geoms_by_part])
+    geoms_array = np.concatenate([g.normalize().to_numpy() for g in geoms_by_part])
 
     arrays = [
         da.from_delayed(
