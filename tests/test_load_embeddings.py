@@ -353,7 +353,8 @@ def test_load_embedding_item_parquet_no_bbox(reproject_to_4326: bool):
         item, asset_name, None, reproject_to_4326
     )
 
-    assert e_dc.shape == (4, 4)
+    assert e_dc.shape == (1, 4, 4)
+    assert "time" in e_dc.dims
     assert "geometry" in e_dc.dims
     assert "embedding" in e_dc.dims
     assert isinstance(e_dc.data, da.Array)
@@ -393,7 +394,8 @@ def test_load_embedding_item_parquet_with_bbox(reproject_to_4326: bool):
         item, asset_name, bbox, reproject_to_4326
     )
 
-    assert e_dc.shape == (2, 4)
+    assert e_dc.shape == (1, 2, 4)
+    assert "time" in e_dc.dims
     assert "geometry" in e_dc.dims
     assert "embedding" in e_dc.dims
     assert isinstance(e_dc.data, da.Array)
@@ -545,3 +547,90 @@ def test_load_embeddings_tif_singleitem():
     assert "embedding" in e_dc.dims
     assert "time" in e_dc.dims
     assert isinstance(e_dc.data, da.Array)
+
+
+def test_load_embedding_collection_parquet():
+    coll = pystac.Collection(
+        "asdf",
+        "asdf",
+        pystac.Extent(
+            pystac.SpatialExtent([0, 0, 1, 1]),
+            pystac.TemporalExtent([datetime(2025, 1, 1)]),
+        ),
+        extra_fields={"proj:code": "EPSG:32632"},
+    )
+    items = []
+    dates = [datetime(2025, 1, 1), datetime(2025, 1, 2)]
+    poly = [[[0, 0], [0, 1], [1, 1], [1, 0], [0, 0]]]
+    i = 0
+    for date in dates:
+        items.append(
+            _make_item(
+                str(i),
+                date,
+                poly,
+                "tests/data/embeddings.parquet",
+                "application/vnd.apache.parquet",
+            )
+        )
+        i += 1
+    item_collection = _make_item_collection(items)
+    e_dc = load_embeddings._load_embedding_collection_parquet(
+        coll, item_collection, "embedding", None
+    )
+    assert e_dc.shape == (2, 4, 4)
+    assert "embedding" in e_dc.dims
+    assert "time" in e_dc.dims
+    assert "geometry" in e_dc.dims
+
+
+@pytest.mark.vcr()
+def test_load_embedding_collection_parquetcollection():
+    url = "http://localhost:8082/collections/terramind_embeddings"
+    coll = pystac.Collection.from_file(url)
+    bbox = BoundingBox(
+        east=7.626471282171344,
+        south=51.95677890608484,
+        west=7.628845144763302,
+        north=51.95733618982899,
+        crs="EPSG:4326",
+    )
+    temp = TemporalInterval(["2025-01-01", "2025-01-03"])
+
+    e_dc = load_embeddings._load_embedding_collection(
+        url, coll, bbox, temp, "embeddings"
+    )
+    assert e_dc.shape == (3, 2, 4)
+    assert "geometry" in e_dc.dims
+    assert "time" in e_dc.dims
+    assert "embedding" in e_dc.dims
+
+
+@pytest.mark.vcr()
+def test_load_embeddings_parquet_collection():
+    url = "http://localhost:8082/collections/terramind_embeddings"
+    bbox = BoundingBox(
+        east=7.626471282171344,
+        south=51.95677890608484,
+        west=7.628845144763302,
+        north=51.95733618982899,
+        crs="EPSG:4326",
+    )
+    temp = TemporalInterval(["2025-01-01", "2025-01-03"])
+
+    e_dc = load_embeddings.load_embeddings(url, bbox, temp, "embeddings")
+    assert e_dc.shape == (3, 2, 4)
+    assert "geometry" in e_dc.dims
+    assert "time" in e_dc.dims
+    assert "embedding" in e_dc.dims
+
+
+@pytest.mark.vcr()
+def test_load_embeddings_parquet_singleitem():
+    url = "http://localhost:8082/collections/terramind_embeddings/items/emb_0"
+    e_dc = load_embeddings.load_embeddings(url, asset_name="embeddings")
+
+    assert e_dc.shape == (1, 4, 4)
+    assert "geometry" in e_dc.dims
+    assert "embedding" in e_dc.dims
+    assert "time" in e_dc.dims

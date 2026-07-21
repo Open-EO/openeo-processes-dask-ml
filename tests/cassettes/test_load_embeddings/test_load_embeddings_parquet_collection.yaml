@@ -1,0 +1,303 @@
+interactions:
+- request:
+    body: null
+    headers:
+      Accept:
+      - '*/*'
+      Accept-Encoding:
+      - gzip, deflate, br
+      Connection:
+      - keep-alive
+      User-Agent:
+      - python-requests/2.32.5
+    method: GET
+    uri: http://localhost:8082/collections/terramind_embeddings
+  response:
+    body:
+      string: '{"id":"terramind_embeddings","type":"Collection","links":[{"rel":"items","type":"application/geo+json","href":"http://localhost:8082/collections/terramind_embeddings/items"},{"rel":"parent","type":"application/json","href":"http://localhost:8082/"},{"rel":"root","type":"application/json","href":"http://localhost:8082/"},{"rel":"self","type":"application/json","href":"http://localhost:8082/collections/terramind_embeddings"},{"rel":"emb:model","href":"https://example.com/terramind-stac-MLM-item","type":"application/json","title":"Terramind
+        Sentinel-2 encoder"},{"rel":"emb:source-data","href":"https://stac.dataspace.copernicus.eu/v1/collections/sentinel-2-l2a","type":"application/json","title":"Collection
+        of Sentinel-2-L2A images"},{"rel":"http://www.opengis.net/def/rel/ogc/1.0/queryables","type":"application/schema+json","title":"Queryables","href":"http://localhost:8082/collections/terramind_embeddings/queryables"}],"title":"Terramind
+        embeddings","extent":{"spatial":{"bbox":[[-180,-90,180,90]]},"temporal":{"interval":[["1970-01-01T11:00:00.000Z","2030-12-31T23:59:59.999Z"]]}},"license":"CC-BY-4.0","emb:type":"patch","keywords":["terramind","embeddings","collection"],"data_type":"float32","proj:code":"EPSG:25832","providers":[{"url":"https://embed2scale.eu","name":"Embed2Scale","roles":["producer","processor"],"description":"EU
+        Horizon Embed2Scale Project, GA Number 101131841"}],"description":"A collection
+        of pre-computed terramind embeddings","stac_version":"1.1.0","emb:dimensions":768,"stac_extensions":["https://stac-extensions.github.io/embeddings/v0.0.1/schema.json"]}'
+    headers:
+      content-encoding:
+      - br
+      content-length:
+      - '669'
+      content-type:
+      - application/json
+      date:
+      - Tue, 21 Jul 2026 13:05:47 GMT
+      server:
+      - uvicorn
+      vary:
+      - Accept-Encoding
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      Accept:
+      - '*/*'
+      Accept-Encoding:
+      - gzip, deflate, br
+      Connection:
+      - keep-alive
+      User-Agent:
+      - python-requests/2.32.5
+    method: GET
+    uri: http://localhost:8082/
+  response:
+    body:
+      string: '{"type":"Catalog","id":"stac-fastapi","title":"stac-fastapi","description":"stac-fastapi","stac_version":"1.0.0","conformsTo":["http://www.opengis.net/spec/cql2/1.0/conf/basic-cql2","http://www.opengis.net/spec/cql2/1.0/conf/cql2-json","http://www.opengis.net/spec/cql2/1.0/conf/cql2-text","http://www.opengis.net/spec/ogcapi-common-2/1.0/conf/simple-query","http://www.opengis.net/spec/ogcapi-features-1/1.0/conf/core","http://www.opengis.net/spec/ogcapi-features-1/1.0/conf/geojson","http://www.opengis.net/spec/ogcapi-features-1/1.0/conf/oas30","http://www.opengis.net/spec/ogcapi-features-3/1.0/conf/features-filter","http://www.opengis.net/spec/ogcapi-features-3/1.0/conf/filter","https://api.stacspec.org/v1.0.0-rc.1/collection-search","https://api.stacspec.org/v1.0.0-rc.1/collection-search#fields","https://api.stacspec.org/v1.0.0-rc.1/collection-search#filter","https://api.stacspec.org/v1.0.0-rc.1/collection-search#free-text","https://api.stacspec.org/v1.0.0-rc.1/collection-search#query","https://api.stacspec.org/v1.0.0-rc.1/collection-search#sort","https://api.stacspec.org/v1.0.0-rc.2/item-search#filter","https://api.stacspec.org/v1.0.0/collections","https://api.stacspec.org/v1.0.0/core","https://api.stacspec.org/v1.0.0/item-search","https://api.stacspec.org/v1.0.0/item-search#fields","https://api.stacspec.org/v1.0.0/item-search#query","https://api.stacspec.org/v1.0.0/item-search#sort","https://api.stacspec.org/v1.0.0/ogcapi-features","https://api.stacspec.org/v1.0.0/ogcapi-features#fields","https://api.stacspec.org/v1.0.0/ogcapi-features#query","https://api.stacspec.org/v1.0.0/ogcapi-features#sort"],"links":[{"rel":"self","type":"application/json","title":"This
+        document","href":"http://localhost:8082/"},{"rel":"root","type":"application/json","title":"Root","href":"http://localhost:8082/"},{"rel":"data","type":"application/json","title":"Collections
+        available for this Catalog","href":"http://localhost:8082/collections"},{"rel":"conformance","type":"application/json","title":"STAC/OGC
+        conformance classes implemented by this server","href":"http://localhost:8082/conformance"},{"rel":"search","type":"application/geo+json","title":"STAC
+        search [GET]","href":"http://localhost:8082/search","method":"GET"},{"rel":"search","type":"application/geo+json","title":"STAC
+        search [POST]","href":"http://localhost:8082/search","method":"POST"},{"rel":"http://www.opengis.net/def/rel/ogc/1.0/queryables","type":"application/schema+json","title":"Queryables
+        available for this Catalog","href":"http://localhost:8082/queryables","method":"GET"},{"rel":"service-desc","type":"application/vnd.oai.openapi+json;version=3.0","title":"OpenAPI
+        service description","href":"http://localhost:8082/api"},{"rel":"service-doc","type":"text/html","title":"OpenAPI
+        service documentation","href":"http://localhost:8082/api.html"}],"stac_extensions":[]}'
+    headers:
+      content-encoding:
+      - br
+      content-length:
+      - '651'
+      content-type:
+      - application/json
+      date:
+      - Tue, 21 Jul 2026 13:05:47 GMT
+      server:
+      - uvicorn
+      vary:
+      - Accept-Encoding
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      Accept:
+      - '*/*'
+      Accept-Encoding:
+      - gzip, deflate, br
+      Connection:
+      - keep-alive
+      User-Agent:
+      - python-requests/2.32.5
+    method: GET
+    uri: https://schemas.stacspec.org/v1.0.0/catalog-spec/json-schema/catalog.json
+  response:
+    body:
+      string: "{\n  \"$schema\": \"http://json-schema.org/draft-07/schema#\",\n  \"$id\":
+        \"https://schemas.stacspec.org/v1.0.0/catalog-spec/json-schema/catalog.json#\",\n
+        \ \"title\": \"STAC Catalog Specification\",\n  \"description\": \"This object
+        represents Catalogs in a SpatioTemporal Asset Catalog.\",\n  \"allOf\": [\n
+        \   {\n      \"$ref\": \"#/definitions/catalog\"\n    }\n  ],\n  \"definitions\":
+        {\n    \"catalog\": {\n      \"title\": \"STAC Catalog\",\n      \"type\":
+        \"object\",\n      \"required\": [\n        \"stac_version\",\n        \"type\",\n
+        \       \"id\",\n        \"description\",\n        \"links\"\n      ],\n      \"properties\":
+        {\n        \"stac_version\": {\n          \"title\": \"STAC version\",\n          \"type\":
+        \"string\",\n          \"const\": \"1.0.0\"\n        },\n        \"stac_extensions\":
+        {\n          \"title\": \"STAC extensions\",\n          \"type\": \"array\",\n
+        \         \"uniqueItems\": true,\n          \"items\": {\n            \"title\":
+        \"Reference to a JSON Schema\",\n            \"type\": \"string\",\n            \"format\":
+        \"iri\"\n          }\n        },\n        \"type\": {\n          \"title\":
+        \"Type of STAC entity\",\n          \"const\": \"Catalog\"\n        },\n        \"id\":
+        {\n          \"title\": \"Identifier\",\n          \"type\": \"string\",\n
+        \         \"minLength\": 1\n        },\n        \"title\": {\n          \"title\":
+        \"Title\",\n          \"type\": \"string\"\n        },\n        \"description\":
+        {\n          \"title\": \"Description\",\n          \"type\": \"string\",\n
+        \         \"minLength\": 1\n        },\n        \"links\": {\n          \"title\":
+        \"Links\",\n          \"type\": \"array\",\n          \"items\": {\n            \"$ref\":
+        \"#/definitions/link\"\n          }\n        }\n      }\n    },\n    \"link\":
+        {\n      \"type\": \"object\",\n      \"required\": [\n        \"rel\",\n
+        \       \"href\"\n      ],\n      \"properties\": {\n        \"href\": {\n
+        \         \"title\": \"Link reference\",\n          \"type\": \"string\",\n
+        \         \"format\": \"iri-reference\",\n          \"minLength\": 1\n        },\n
+        \       \"rel\": {\n          \"title\": \"Link relation type\",\n          \"type\":
+        \"string\",\n          \"minLength\": 1\n        },\n        \"type\": {\n
+        \         \"title\": \"Link type\",\n          \"type\": \"string\"\n        },\n
+        \       \"title\": {\n          \"title\": \"Link title\",\n          \"type\":
+        \"string\"\n        }\n      }\n    }\n  }\n}\n"
+    headers:
+      Accept-Ranges:
+      - bytes
+      Access-Control-Allow-Origin:
+      - '*'
+      Age:
+      - '115'
+      Cache-Control:
+      - max-age=600
+      Connection:
+      - keep-alive
+      Content-Encoding:
+      - gzip
+      Content-Length:
+      - '582'
+      Content-Type:
+      - application/json; charset=utf-8
+      Date:
+      - Tue, 21 Jul 2026 13:05:48 GMT
+      ETag:
+      - W/"691b88d5-879"
+      Last-Modified:
+      - Mon, 17 Nov 2025 20:43:01 GMT
+      Server:
+      - GitHub.com
+      Vary:
+      - Accept-Encoding
+      Via:
+      - 1.1 varnish
+      X-Cache:
+      - HIT
+      X-Cache-Hits:
+      - '0'
+      X-Fastly-Request-ID:
+      - 51f2b68f8c611a2778f1e93fc0c05a27095dfc45
+      X-GitHub-Request-Id:
+      - 3C2E:3F03B2:1134463:117439F:6A5F6D22
+      X-Served-By:
+      - cache-fra-etou8220152-FRA
+      X-Timer:
+      - S1784639149.540016,VS0,VE1
+      expires:
+      - Tue, 21 Jul 2026 13:09:15 GMT
+      x-proxy-cache:
+      - MISS
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      Accept:
+      - '*/*'
+      Accept-Encoding:
+      - gzip, deflate, br
+      Connection:
+      - keep-alive
+      User-Agent:
+      - python-requests/2.32.5
+    method: GET
+    uri: http://localhost:8082/
+  response:
+    body:
+      string: '{"type":"Catalog","id":"stac-fastapi","title":"stac-fastapi","description":"stac-fastapi","stac_version":"1.0.0","conformsTo":["http://www.opengis.net/spec/cql2/1.0/conf/basic-cql2","http://www.opengis.net/spec/cql2/1.0/conf/cql2-json","http://www.opengis.net/spec/cql2/1.0/conf/cql2-text","http://www.opengis.net/spec/ogcapi-common-2/1.0/conf/simple-query","http://www.opengis.net/spec/ogcapi-features-1/1.0/conf/core","http://www.opengis.net/spec/ogcapi-features-1/1.0/conf/geojson","http://www.opengis.net/spec/ogcapi-features-1/1.0/conf/oas30","http://www.opengis.net/spec/ogcapi-features-3/1.0/conf/features-filter","http://www.opengis.net/spec/ogcapi-features-3/1.0/conf/filter","https://api.stacspec.org/v1.0.0-rc.1/collection-search","https://api.stacspec.org/v1.0.0-rc.1/collection-search#fields","https://api.stacspec.org/v1.0.0-rc.1/collection-search#filter","https://api.stacspec.org/v1.0.0-rc.1/collection-search#free-text","https://api.stacspec.org/v1.0.0-rc.1/collection-search#query","https://api.stacspec.org/v1.0.0-rc.1/collection-search#sort","https://api.stacspec.org/v1.0.0-rc.2/item-search#filter","https://api.stacspec.org/v1.0.0/collections","https://api.stacspec.org/v1.0.0/core","https://api.stacspec.org/v1.0.0/item-search","https://api.stacspec.org/v1.0.0/item-search#fields","https://api.stacspec.org/v1.0.0/item-search#query","https://api.stacspec.org/v1.0.0/item-search#sort","https://api.stacspec.org/v1.0.0/ogcapi-features","https://api.stacspec.org/v1.0.0/ogcapi-features#fields","https://api.stacspec.org/v1.0.0/ogcapi-features#query","https://api.stacspec.org/v1.0.0/ogcapi-features#sort"],"links":[{"rel":"self","type":"application/json","title":"This
+        document","href":"http://localhost:8082/"},{"rel":"root","type":"application/json","title":"Root","href":"http://localhost:8082/"},{"rel":"data","type":"application/json","title":"Collections
+        available for this Catalog","href":"http://localhost:8082/collections"},{"rel":"conformance","type":"application/json","title":"STAC/OGC
+        conformance classes implemented by this server","href":"http://localhost:8082/conformance"},{"rel":"search","type":"application/geo+json","title":"STAC
+        search [GET]","href":"http://localhost:8082/search","method":"GET"},{"rel":"search","type":"application/geo+json","title":"STAC
+        search [POST]","href":"http://localhost:8082/search","method":"POST"},{"rel":"http://www.opengis.net/def/rel/ogc/1.0/queryables","type":"application/schema+json","title":"Queryables
+        available for this Catalog","href":"http://localhost:8082/queryables","method":"GET"},{"rel":"service-desc","type":"application/vnd.oai.openapi+json;version=3.0","title":"OpenAPI
+        service description","href":"http://localhost:8082/api"},{"rel":"service-doc","type":"text/html","title":"OpenAPI
+        service documentation","href":"http://localhost:8082/api.html"}],"stac_extensions":[]}'
+    headers:
+      content-encoding:
+      - br
+      content-length:
+      - '651'
+      content-type:
+      - application/json
+      date:
+      - Tue, 21 Jul 2026 13:05:47 GMT
+      server:
+      - uvicorn
+      vary:
+      - Accept-Encoding
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      Accept:
+      - '*/*'
+      Accept-Encoding:
+      - gzip, deflate, br
+      Connection:
+      - keep-alive
+      User-Agent:
+      - python-requests/2.32.5
+    method: GET
+    uri: http://localhost:8082/
+  response:
+    body:
+      string: '{"type":"Catalog","id":"stac-fastapi","title":"stac-fastapi","description":"stac-fastapi","stac_version":"1.0.0","conformsTo":["http://www.opengis.net/spec/cql2/1.0/conf/basic-cql2","http://www.opengis.net/spec/cql2/1.0/conf/cql2-json","http://www.opengis.net/spec/cql2/1.0/conf/cql2-text","http://www.opengis.net/spec/ogcapi-common-2/1.0/conf/simple-query","http://www.opengis.net/spec/ogcapi-features-1/1.0/conf/core","http://www.opengis.net/spec/ogcapi-features-1/1.0/conf/geojson","http://www.opengis.net/spec/ogcapi-features-1/1.0/conf/oas30","http://www.opengis.net/spec/ogcapi-features-3/1.0/conf/features-filter","http://www.opengis.net/spec/ogcapi-features-3/1.0/conf/filter","https://api.stacspec.org/v1.0.0-rc.1/collection-search","https://api.stacspec.org/v1.0.0-rc.1/collection-search#fields","https://api.stacspec.org/v1.0.0-rc.1/collection-search#filter","https://api.stacspec.org/v1.0.0-rc.1/collection-search#free-text","https://api.stacspec.org/v1.0.0-rc.1/collection-search#query","https://api.stacspec.org/v1.0.0-rc.1/collection-search#sort","https://api.stacspec.org/v1.0.0-rc.2/item-search#filter","https://api.stacspec.org/v1.0.0/collections","https://api.stacspec.org/v1.0.0/core","https://api.stacspec.org/v1.0.0/item-search","https://api.stacspec.org/v1.0.0/item-search#fields","https://api.stacspec.org/v1.0.0/item-search#query","https://api.stacspec.org/v1.0.0/item-search#sort","https://api.stacspec.org/v1.0.0/ogcapi-features","https://api.stacspec.org/v1.0.0/ogcapi-features#fields","https://api.stacspec.org/v1.0.0/ogcapi-features#query","https://api.stacspec.org/v1.0.0/ogcapi-features#sort"],"links":[{"rel":"self","type":"application/json","title":"This
+        document","href":"http://localhost:8082/"},{"rel":"root","type":"application/json","title":"Root","href":"http://localhost:8082/"},{"rel":"data","type":"application/json","title":"Collections
+        available for this Catalog","href":"http://localhost:8082/collections"},{"rel":"conformance","type":"application/json","title":"STAC/OGC
+        conformance classes implemented by this server","href":"http://localhost:8082/conformance"},{"rel":"search","type":"application/geo+json","title":"STAC
+        search [GET]","href":"http://localhost:8082/search","method":"GET"},{"rel":"search","type":"application/geo+json","title":"STAC
+        search [POST]","href":"http://localhost:8082/search","method":"POST"},{"rel":"http://www.opengis.net/def/rel/ogc/1.0/queryables","type":"application/schema+json","title":"Queryables
+        available for this Catalog","href":"http://localhost:8082/queryables","method":"GET"},{"rel":"service-desc","type":"application/vnd.oai.openapi+json;version=3.0","title":"OpenAPI
+        service description","href":"http://localhost:8082/api"},{"rel":"service-doc","type":"text/html","title":"OpenAPI
+        service documentation","href":"http://localhost:8082/api.html"}],"stac_extensions":[]}'
+    headers:
+      content-encoding:
+      - br
+      content-length:
+      - '651'
+      content-type:
+      - application/json
+      date:
+      - Tue, 21 Jul 2026 13:05:47 GMT
+      server:
+      - uvicorn
+      vary:
+      - Accept-Encoding
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '{"bbox": [7.628845144763302, 51.95677890608484, 7.626471282171344, 51.95733618982899],
+      "datetime": "2025-01-01T00:00:00.000000Z/2025-01-03T00:00:00.000000Z", "collections":
+      ["terramind_embeddings"]}'
+    headers:
+      Accept:
+      - '*/*'
+      Accept-Encoding:
+      - gzip, deflate, br
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '198'
+      Content-Type:
+      - application/json
+      User-Agent:
+      - python-requests/2.32.5
+    method: POST
+    uri: http://localhost:8082/search
+  response:
+    body:
+      string: '{"type":"FeatureCollection","links":[{"rel":"root","type":"application/json","href":"http://localhost:8082/"},{"rel":"self","type":"application/geo+json","href":"http://localhost:8082/search"}],"features":[{"id":"emb_2","bbox":[-180,-90,180,90],"type":"Feature","links":[{"rel":"collection","type":"application/json","href":"http://localhost:8082/collections/terramind_embeddings"},{"rel":"parent","type":"application/json","href":"http://localhost:8082/collections/terramind_embeddings"},{"rel":"root","type":"application/json","href":"http://localhost:8082/"},{"rel":"self","type":"application/geo+json","href":"http://localhost:8082/collections/terramind_embeddings/items/emb_2"},{"rel":"emb:source-data","href":"https://stac.dataspace.copernicus.eu/v1/collections/sentinel-2-l2a/items/S2A_MSIL2A_20170102T175732_N0500_R141_T13TEF_20230926T044006","type":"application/json","title":"Sentinel-2
+        image from which this embedding was computed."}],"assets":{"embeddings":{"href":"tests/data/embeddings.parquet","type":"application/vnd.apache.parquet","roles":["embedding"],"title":"AEF
+        embeddings"}},"geometry":{"type":"Polygon","coordinates":[[[7.61376797,51.94925032],[7.61376797,51.959129],[7.62883032,51.959129],[7.62883032,51.94925032],[7.61376797,51.94925032]]]},"collection":"terramind_embeddings","properties":{"gsd":10,"title":"Terramind
+        Embedding","datetime":"2025-01-03T00:00:00","licensing":" CC-BY 4.0","description":"Terramind
+        embedding from Sentinel-2-L2A imagery."},"stac_version":"1.1.0","stac_extensions":[]},{"id":"emb_1","bbox":[-180,-90,180,90],"type":"Feature","links":[{"rel":"collection","type":"application/json","href":"http://localhost:8082/collections/terramind_embeddings"},{"rel":"parent","type":"application/json","href":"http://localhost:8082/collections/terramind_embeddings"},{"rel":"root","type":"application/json","href":"http://localhost:8082/"},{"rel":"self","type":"application/geo+json","href":"http://localhost:8082/collections/terramind_embeddings/items/emb_1"},{"rel":"emb:source-data","href":"https://stac.dataspace.copernicus.eu/v1/collections/sentinel-2-l2a/items/S2A_MSIL2A_20170102T175732_N0500_R141_T13TEF_20230926T044006","type":"application/json","title":"Sentinel-2
+        image from which this embedding was computed."}],"assets":{"embeddings":{"href":"tests/data/embeddings.parquet","type":"application/vnd.apache.parquet","roles":["embedding"],"title":"AEF
+        embeddings"}},"geometry":{"type":"Polygon","coordinates":[[[7.61376797,51.94925032],[7.61376797,51.959129],[7.62883032,51.959129],[7.62883032,51.94925032],[7.61376797,51.94925032]]]},"collection":"terramind_embeddings","properties":{"gsd":10,"title":"Terramind
+        Embedding","datetime":"2025-01-02T00:00:00","licensing":" CC-BY 4.0","description":"Terramind
+        embedding from Sentinel-2-L2A imagery."},"stac_version":"1.1.0","stac_extensions":[]},{"id":"emb_0","bbox":[-180,-90,180,90],"type":"Feature","links":[{"rel":"collection","type":"application/json","href":"http://localhost:8082/collections/terramind_embeddings"},{"rel":"parent","type":"application/json","href":"http://localhost:8082/collections/terramind_embeddings"},{"rel":"root","type":"application/json","href":"http://localhost:8082/"},{"rel":"self","type":"application/geo+json","href":"http://localhost:8082/collections/terramind_embeddings/items/emb_0"},{"rel":"emb:source-data","href":"https://stac.dataspace.copernicus.eu/v1/collections/sentinel-2-l2a/items/S2A_MSIL2A_20170102T175732_N0500_R141_T13TEF_20230926T044006","type":"application/json","title":"Sentinel-2
+        image from which this embedding was computed."}],"assets":{"embeddings":{"href":"tests/data/embeddings.parquet","type":"application/vnd.apache.parquet","roles":["embedding"],"title":"AEF
+        embeddings"}},"geometry":{"type":"Polygon","coordinates":[[[7.61376797,51.94925032],[7.61376797,51.959129],[7.62883032,51.959129],[7.62883032,51.94925032],[7.61376797,51.94925032]]]},"collection":"terramind_embeddings","properties":{"gsd":10,"title":"Terramind
+        Embedding","datetime":"2025-01-01T00:00:00","licensing":" CC-BY 4.0","description":"Terramind
+        embedding from Sentinel-2-L2A imagery."},"stac_version":"1.1.0","stac_extensions":[]}],"numberReturned":3}'
+    headers:
+      content-encoding:
+      - br
+      content-length:
+      - '637'
+      content-type:
+      - application/geo+json
+      date:
+      - Tue, 21 Jul 2026 13:05:47 GMT
+      server:
+      - uvicorn
+      vary:
+      - Accept-Encoding
+    status:
+      code: 200
+      message: OK
+version: 1
