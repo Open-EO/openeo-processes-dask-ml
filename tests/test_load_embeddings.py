@@ -1,6 +1,5 @@
 from datetime import datetime
 
-import dask.array as da
 import numpy as np
 import pyproj
 import pystac
