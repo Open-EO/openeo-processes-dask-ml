@@ -224,6 +224,7 @@ def _load_embedding_item(
     embedding_asset = stac_item.assets[asset_name]
     media_type = embedding_asset.media_type
     path = embedding_asset.href
+    time = _get_item_time(stac_item)
 
     # we assume that embeddings as tif or parquet are purely spatial
     # if its it zarr, it can be spatial or spatio-temporal
@@ -231,7 +232,6 @@ def _load_embedding_item(
     # load geotif file
     if media_type.startswith("image/tif"):  # todo: to_epsg_4326, bbox
         footprint = shapely.from_geojson(json.dumps(stac_item.geometry))
-        time = _get_item_time(stac_item)
         emb_cube = _load_tiff(path)
         emb_cube = emb_cube.expand_dims({"geometry": [footprint], "time": [time]})
 
@@ -242,6 +242,7 @@ def _load_embedding_item(
         "application/vnd.apache.parquet"
     ):
         emb_cube = _load_parquet_item(path, bbox, to_epsg_4326)
+        emb_cube = emb_cube.expand_dims({"time": [time]})
         return emb_cube
 
     # if parquet: load_parquet
@@ -351,6 +352,16 @@ def _load_embedding_collection_parquet(
     asset_name: str,
     bbox: BoundingBox | None,
 ) -> xr.DataArray:
+    def _prep_and_load_item(
+        item: pystac.Item,
+        asset_name: str,
+        bbox: BoundingBox,
+        transform_to_epsg_4326: bool,
+    ) -> xr.DataArray:
+        emb_dc = _load_embedding_item(item, asset_name, bbox, transform_to_epsg_4326)
+        emb_dc = emb_dc.squeeze("time")
+        return emb_dc
+
     # at this point we assume that one item only contains data from one timestep
     item_datetimes = [_get_item_time(i) for i in items]
 
@@ -361,7 +372,7 @@ def _load_embedding_collection_parquet(
     with ThreadPoolExecutor(max_workers=MAX_THREADS) as executor:
         per_item_cubes = list(
             executor.map(
-                lambda i: _load_embedding_item(i, asset_name, bbox, to_epsg_4326), items
+                lambda i: _prep_and_load_item(i, asset_name, bbox, to_epsg_4326), items
             )
         )
 
