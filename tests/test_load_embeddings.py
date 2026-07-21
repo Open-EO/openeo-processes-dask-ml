@@ -13,7 +13,9 @@ from openeo_pg_parser_networkx.pg_schema import BoundingBox, TemporalInterval
 from openeo_processes_dask_ml.process_implementations import load_embeddings
 
 
-def _make_item(item_id: str, date: datetime, polygon_coords) -> pystac.Item:
+def _make_item(
+    item_id: str, date: datetime, polygon_coords, asset_path: str, mediatype: str
+) -> pystac.Item:
     """Build a minimal pystac.Item with the given {asset_name: media_type} assets."""
     item = pystac.Item(
         id=item_id,
@@ -27,7 +29,7 @@ def _make_item(item_id: str, date: datetime, polygon_coords) -> pystac.Item:
     )
     item.add_asset(
         "embedding",
-        pystac.Asset(href="tests/data/embedding_1x1.tif", media_type="image/tif"),
+        pystac.Asset(href=asset_path, media_type=mediatype),
     )
     return item
 
@@ -462,7 +464,11 @@ def test_load_collection_tif():
     i = 0
     for poly in poly_coords:
         for date in dates:
-            items.append(_make_item(str(i), date, poly))
+            items.append(
+                _make_item(
+                    str(i), date, poly, "tests/data/embedding_1x1.tif", "image/tif"
+                )
+            )
             i += 1
     item_collection = _make_item_collection(items)
 
@@ -533,7 +539,6 @@ def test_load_embeddings_tif_singleitem():
     )
     asset_name = "embeddings"
 
-    # todo: time dimension for single item
     e_dc = load_embeddings.load_embeddings(url, asset_name=asset_name)
     assert e_dc.shape == (1, 1, 768)
     assert "geometry" in e_dc.dims
