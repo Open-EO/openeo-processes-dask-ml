@@ -10,11 +10,11 @@ authors = [
 ]
 
 dependencies = [
-    "openeo-processes-dask[implementations]>=2025.10.1",
     "boto3>=1.38.14",
     "stackstac>=0.5.1",
-    "pystac @ git+https://github.com/jonas-hurst/pystac@v1.11OWN",
-    "brotli>=1.2.0"
+    "brotli>=1.2.0",
+    "openeo-processes-dask[implementations] (>=2026.6.4,<2027.0.0)",
+    "pystac @ git+https://github.com/jonas-hurst/pystac@v1.15.1OWN"
 ]
 
 [project.optional-dependencies]
