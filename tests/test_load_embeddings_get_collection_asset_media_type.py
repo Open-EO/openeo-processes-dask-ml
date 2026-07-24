@@ -2,7 +2,7 @@ import datetime
 
 import pystac
 import pytest
-from pystac.extensions.item_assets import AssetDefinition
+from pystac.extensions.item_assets import ItemAssetDefinition
 
 # Adjust this import to wherever the function lives
 from openeo_processes_dask_ml.process_implementations.load_embeddings import (
@@ -28,7 +28,7 @@ def make_collection(item_assets: dict | None = None) -> pystac.Collection:
     if item_assets is not None:
         # item_assets maps asset_name -> AssetDefinition
         collection.item_assets = {
-            name: AssetDefinition({"type": media_type})
+            name: ItemAssetDefinition({"type": media_type})
             for name, media_type in item_assets.items()
         }
     return collection
