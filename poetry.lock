@@ -1707,13 +1707,13 @@ tqdm = ["tqdm"]
 
 [[package]]
 name = "gdal"
-version = "3.13.2"
+version = "3.13.1"
 description = "GDAL: Geospatial Data Abstraction Library"
 optional = false
 python-versions = ">=3.8.0"
 groups = ["main"]
 files = [
-    {file = "gdal-3.13.2.tar.gz", hash = "sha256:495acc5162636068ee151fc699fbaf702ac0849da1956f55566b771d00c8ee42"},
+    {file = "gdal-3.13.1.tar.gz", hash = "sha256:94bb64d729ce73ceb75a314a15cba92696cdd854d99b6bf6b88a7b551227db74"},
 ]
 
 [package.extras]
@@ -7082,4 +7082,4 @@ torch = ["torch"]
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.12,<3.13"
-content-hash = "657a6a87bba9aee12ea0def8c714339d04f3a9850227e96336a5da9135113e03"
+content-hash = "60fbb5e375f3169dda81351a27a1ba4791119be5fb56db7bb010c268f398bdf1"
