@@ -142,7 +142,6 @@ def _update_stac_metadata_vector_cube(stac_metadata: dict, datacube: xr.DataArra
 
 
 def _save_metadata_file(stac_metadata: dict, metadata_path: str) -> bool:
-    print(stac_metadata)
     try:
         with open(metadata_path, "w") as file:
             json.dump(stac_metadata, file, indent=4)
