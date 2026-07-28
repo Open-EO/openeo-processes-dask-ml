@@ -1,0 +1,25 @@
+{
+    "id": "save_embeddings",
+    "summary": "Save the embeddings datacube",
+    "description": "Specialized process to save an embeddings datacube with appropriate metadata. This may eventually be incorporated into the save_result process. The format will be zarr when embeddigns are gridded regularly, or parquet when gridded irregularly",
+    "categories": [
+        "foundation models", "embeddings"
+    ],
+    "experimental": true,
+    "parameters": [
+        {
+            "name": "data",
+            "description": "The spatio-temporal data cube containing the embeddings.",
+            "schema": {
+                "type": "object",
+                "subtype": "datacube"
+            }
+        }
+    ],
+    "returns": {
+        "description": "Bool value indicating that saving was successful (true) or not (false)",
+        "schema": {
+            "type": "bool"
+        }
+    }
+}
