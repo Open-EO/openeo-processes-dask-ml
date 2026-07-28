@@ -6,12 +6,13 @@ from pathlib import Path
 from uuid import uuid4
 
 import xarray as xr
+from dask.delayed import Delayed, delayed
 from openeo_processes_dask.process_implementations.exceptions import DimensionMissing
 
 from openeo_processes_dask_ml.process_implementations.constants import (
     OPENEO_RESULTS_PATH,
 )
-from openeo_processes_dask_ml.process_implementations.utils import dim_utils
+from openeo_processes_dask_ml.process_implementations.utils import dim_utils, zip_utils
 
 
 def _get_stac_item_template(_id: str) -> dict:
@@ -50,46 +51,13 @@ def _get_stac_item_template(_id: str) -> dict:
     return d
 
 
-def _zip_results(
-    zip_dir: Path, zarr_source_dir: Path, zip_name: str = "result.zarr.zip"
-) -> Path:
-    """
-    Archives all contents of `source_dir` into a zip file stored inside
-    `source_dir`, then deletes everything except the created zip file.
-
-    Args:
-        source_dir: Path to the directory to archive.
-        zip_name: Name of the resulting zip archive.
-
-    Returns:
-        Path to the created zip file.
-    """
-    source_path = zarr_source_dir.resolve()
-
-    if not source_path.is_dir():
-        raise ValueError(f"{zarr_source_dir} is not a valid directory")
-
-    zip_path = zip_dir / zip_name
-
-    # Create zip archive
-    with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zf:
-        for item in source_path.rglob("*"):
-            # Skip the zip file itself if it already exists
-            if item == zip_path:
-                continue
-
-            # Store paths relative to source_dir
-            arcname = item.relative_to(source_path)
-            zf.write(item, arcname)
-
-    shutil.rmtree(source_path)
-
-    return zip_path
-
-
-def _save_as_zarr(datacube: xr.DataArray, result_dir: Path, zarr_dir: Path) -> Path:
-    datacube.to_zarr(zarr_dir, mode="w")
-    zip_path = _zip_results(result_dir, zarr_dir)
+def _save_as_zarr(datacube: xr.DataArray, result_dir: Path, zarr_dir: Path) -> Delayed:
+    saved = datacube.to_zarr(
+        zarr_dir, mode="w", zarr_version=3, consolidated=True, compute=False
+    )
+    zip_path = delayed(zip_utils.create_zip_archive)(
+        result_dir, zarr_dir, "results.zarr.zip", saved
+    )
     return zip_path
 
 
@@ -97,10 +65,10 @@ def _set_stac_spatial_metadata_raster(stac_metadata: dict, datacube: xr.DataArra
     x_dim, y_dim = dim_utils.get_spatial_dim_names(datacube)
 
     # todo: convert coords to wgs84
-    xmin = min(datacube.coords[x_dim].data)
-    ymin = min(datacube.coords[y_dim].data)
-    xmax = max(datacube.coords[x_dim].data)
-    ymax = max(datacube.coords[y_dim].data)
+    xmin = float(min(datacube.coords[x_dim].data))
+    ymin = float(min(datacube.coords[y_dim].data))
+    xmax = float(max(datacube.coords[x_dim].data))
+    ymax = float(max(datacube.coords[y_dim].data))
     bbox = [xmin, ymin, xmax, ymax]
 
     geom = {
@@ -149,9 +117,12 @@ def _set_stac_embedding_metadata_raster(stac_metadata: dict, datacube: xr.DataAr
     stac_metadata["properties"]["emb:chip_layout"]["layout_type"] = "regular_grid"
 
 
-def _set_stac_embedding_asset_metadata_raster(asset_metadata: dict, out_path: Path):
-    asset_metadata["href"] = str(out_path.absolute())
-    asset_metadata["type"] = "application/vnd+zarr"
+def _set_stac_embedding_asset_metadata_raster(
+    stac_metadata: dict, out_path: Path
+) -> dict:
+    stac_metadata["assets"]["embeddings"]["href"] = str(out_path.absolute())
+    stac_metadata["assets"]["embeddings"]["type"] = "application/vnd+zarr"
+    return stac_metadata
 
 
 def _update_stac_metadata_raster_cube(
@@ -170,12 +141,20 @@ def _update_stac_metadata_vector_cube(stac_metadata: dict, datacube: xr.DataArra
     pass
 
 
-def save_embeddings(data: xr.DataArray) -> bool:
+def _save_metadata_file(stac_metadata: dict, metadata_path: str) -> bool:
+    print(stac_metadata)
+    try:
+        with open(metadata_path, "w") as file:
+            json.dump(stac_metadata, file, indent=4)
+        return True
+    except Exception as e:
+        raise Exception("Failed saving the metadata file.")
+
+
+def save_embeddings(data: xr.DataArray) -> Delayed:
     # you can call this method form your project-specific save-results process
     # if this method returns True, saving was successful, you can skip your own save-result code
     # if it returns False, saving was unsuccessful (i.e. no embeddings DC) and you can run your own save-result code
-
-    saved = False
 
     if "embedding" not in data.dims:
         raise DimensionMissing(
@@ -195,20 +174,14 @@ def save_embeddings(data: xr.DataArray) -> bool:
         # this implies embeddings in a regular raster -> save as zarr
         _update_stac_metadata_raster_cube(stac_metadata, data, result_dir)
         zipped_zarr_path = _save_as_zarr(data, result_dir, zarr_out_path)
-        _set_stac_embedding_asset_metadata_raster(
-            stac_metadata["assets"]["embeddings"], zipped_zarr_path
+        stac_metadata = delayed(_set_stac_embedding_asset_metadata_raster)(
+            stac_metadata, zipped_zarr_path
         )
-        saved = True
 
     if "geometry" in data.dims or "geom" in data.dims:
         # this implieds embeddings in irregular raster -> save as geo-parquet
         _update_stac_metadata_vector_cube(stac_metadata, data)
         _save_as_parquet(data, result_dir)
-        saved = True
 
-    if saved:
-        with open(metadata_path, "w") as file:
-            json.dump(stac_metadata, file, indent=4)
-        return True
-    else:
-        raise Exception
+    saved = delayed(_save_metadata_file)(stac_metadata, metadata_path)
+    return saved
