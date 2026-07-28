@@ -10,7 +10,7 @@ import pandas as pd
 import pystac_client
 import xarray as xr
 
-from opd_ml_dev_utils.get_datacube import load_stac_with_cache
+from opd_ml_dev_utils.get_datacube import load_stac_with_cache, load_stac_without_cache
 
 logger = logging.getLogger(__name__)
 
@@ -105,8 +105,6 @@ def load_collection(
     dc = load_stac_with_cache(
         collection_url, spatial_extent, temporal_extent, bands, resolved_properties
     )
-
-    dc = dc.chunk({"time": 1, "bands": -1, "x": 200, "y": 200})
 
     return dc
 
