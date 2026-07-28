@@ -53,7 +53,7 @@ def _get_stac_item_template(_id: str) -> dict:
 
 def _save_as_zarr(datacube: xr.DataArray, result_dir: Path, zarr_dir: Path) -> Delayed:
     saved = datacube.to_zarr(
-        zarr_dir, mode="w", zarr_version=3, consolidated=True, compute=False
+        zarr_dir, mode="w", zarr_format=3, consolidated=True, compute=False
     )
     zip_path = delayed(zip_utils.create_zip_archive)(
         result_dir, zarr_dir, "results.zarr.zip", saved
