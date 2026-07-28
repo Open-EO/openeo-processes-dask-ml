@@ -184,7 +184,7 @@ def _save_geotiff(data: xr.DataArray, filename: str):
 
 
 def _save_zarr(data: xr.DataArray, filename: str):
-    return data.to_zarr(filename, compute=False)
+    return data.to_zarr(filename, zarr_version=3, consolidated=True, compute=False)
 
 
 def save_result(data: xr.DataArray, format: str, options=None):
