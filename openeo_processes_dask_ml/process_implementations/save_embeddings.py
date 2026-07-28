@@ -170,14 +170,14 @@ def _update_stac_metadata_vector_cube(stac_metadata: dict, datacube: xr.DataArra
     pass
 
 
-def save_embeddings(datacube: xr.DataArray) -> bool:
+def save_embeddings(data: xr.DataArray) -> bool:
     # you can call this method form your project-specific save-results process
     # if this method returns True, saving was successful, you can skip your own save-result code
     # if it returns False, saving was unsuccessful (i.e. no embeddings DC) and you can run your own save-result code
 
     saved = False
 
-    if "embedding" not in datacube.dims:
+    if "embedding" not in data.dims:
         raise DimensionMissing(
             "Datacube does not contain an embedding dimension. It therefore can not "
             "be used in the save_embeddings process"
@@ -190,20 +190,20 @@ def save_embeddings(datacube: xr.DataArray) -> bool:
 
     stac_metadata = _get_stac_item_template(_id)
 
-    spatial_dims = dim_utils.get_spatial_dim_names(datacube)
+    spatial_dims = dim_utils.get_spatial_dim_names(data)
     if len(spatial_dims) == 2:
         # this implies embeddings in a regular raster -> save as zarr
-        _update_stac_metadata_raster_cube(stac_metadata, datacube, result_dir)
-        zipped_zarr_path = _save_as_zarr(datacube, result_dir, zarr_out_path)
+        _update_stac_metadata_raster_cube(stac_metadata, data, result_dir)
+        zipped_zarr_path = _save_as_zarr(data, result_dir, zarr_out_path)
         _set_stac_embedding_asset_metadata_raster(
             stac_metadata["assets"]["embeddings"], zipped_zarr_path
         )
         saved = True
 
-    if "geometry" in datacube.dims or "geom" in datacube.dims:
+    if "geometry" in data.dims or "geom" in data.dims:
         # this implieds embeddings in irregular raster -> save as geo-parquet
-        _update_stac_metadata_vector_cube(stac_metadata, datacube)
-        _save_as_parquet(datacube, result_dir)
+        _update_stac_metadata_vector_cube(stac_metadata, data)
+        _save_as_parquet(data, result_dir)
         saved = True
 
     if saved:
