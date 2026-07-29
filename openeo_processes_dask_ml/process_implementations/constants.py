@@ -18,12 +18,14 @@ def _get_boolean_env(env_name, default_value: bool) -> bool:
 
 
 CACHE_DIR = os.environ.get("OPD_ML_CACHE_DIR", "./cache")
+DATA_CACHE_DIR = os.environ.get("OPD_ML_DATA_CACHE_DIR", f"{CACHE_DIR}/data_cache")
 MODEL_CACHE_DIR = os.environ.get("OPD_ML_MODEL_CACHE_DIR", f"{CACHE_DIR}/model_cache")
 DATACUBE_CACHE_DIR = os.environ.get(
     "OPD_ML_DATACUBE_CACHE_DIR", f"{CACHE_DIR}/datacubes"
 )
 os.makedirs(MODEL_CACHE_DIR, exist_ok=True)
 os.makedirs(DATACUBE_CACHE_DIR, exist_ok=True)
+os.makedirs(DATA_CACHE_DIR, exist_ok=True)
 
 TMP_DIR = os.environ.get("OPD_ML_TMP_DIR", "./tmp")
 
