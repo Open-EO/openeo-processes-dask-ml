@@ -129,7 +129,22 @@ def _load_zarr(
         if "spatial_ref" not in ds.coords:
             ds.rio.write_crs(crs, inplace=True)
     else:
-        warnings.warn("Could not detect a CRS in the zarr store. Assuming EPSG:4326")
+        x_dim, y_dim = dim_utils.get_spatial_dim_names(ds)
+        x_coords = ds.coords[x_dim].values
+        y_coords = ds.coords[y_dim].values
+
+        # check if x and y coords could be WGS-84 geogrpahic coords
+        x_is_between = np.all((x_coords >= -180) & (y_coords <= 180))
+        y_is_between = np.all((x_coords >= -90) & (y_coords <= 90))
+
+        if x_is_between and y_is_between:
+            warnings.warn(
+                "Could not detect a CRS in the zarr store. Assuming EPSG:4326"
+            )
+            crs = None
+            ds.rio.write_crs("EPSG:4326")
+        else:
+            raise Exception("Could not determine CRS of data in zarr store.")
 
     data_vars = list(ds.data_vars)
     if len(data_vars) == 1:
