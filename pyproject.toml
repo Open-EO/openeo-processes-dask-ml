@@ -16,7 +16,8 @@ dependencies = [
     "openeo-processes-dask[implementations] (>=2026.6.4,<2027.0.0)",
     "pystac @ git+https://github.com/jonas-hurst/pystac@v1.15.1OWN",
     "gdal (==3.13.1)",
-    "zarr (>3.0)"
+    "zarr (>3.0)",
+    "s3fs (>=2026.7.0,<2027.0.0)"
 ]
 
 [project.optional-dependencies]
