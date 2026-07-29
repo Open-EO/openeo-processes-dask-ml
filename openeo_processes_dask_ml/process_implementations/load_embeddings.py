@@ -91,7 +91,7 @@ def _load_zarr(path: str, bbox: BoundingBox) -> xr.DataArray:
         # Not a zip: open directly (local path or remote store).
         store_path = path
 
-    ds = xr.open_zarr(store_path)
+    ds = xr.open_zarr(store_path, decode_coords="all")
 
     data_vars = list(ds.data_vars)
     if len(data_vars) == 1:
