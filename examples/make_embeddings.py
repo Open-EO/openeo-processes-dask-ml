@@ -46,6 +46,7 @@ def run_openeo_ml_predict(model_url: str):
                 "arguments": {
                     "uri": model_url,
                     "model_asset": "weights",
+                    "output_index": 2,
                 },
             },
             "predict": {
