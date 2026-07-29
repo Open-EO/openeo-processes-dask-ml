@@ -171,6 +171,7 @@ def save_embeddings(data: xr.DataArray) -> Delayed:
     spatial_dims = dim_utils.get_spatial_dim_names(data)
     if len(spatial_dims) == 2:
         # this implies embeddings in a regular raster -> save as zarr
+        data.name = "embeddings"
         _update_stac_metadata_raster_cube(stac_metadata, data, result_dir)
         zipped_zarr_path = _save_as_zarr(data, result_dir, zarr_out_path)
         stac_metadata = delayed(_set_stac_embedding_asset_metadata_raster)(
