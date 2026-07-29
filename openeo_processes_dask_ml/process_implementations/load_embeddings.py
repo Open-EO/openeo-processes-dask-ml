@@ -1,6 +1,9 @@
+import hashlib
 import json
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime as Datetime
+from pathlib import Path
+from urllib.parse import urlparse
 
 import dask
 import dask_geopandas
@@ -23,7 +26,12 @@ from openeo_pg_parser_networkx.pg_schema import BoundingBox, TemporalInterval
 from openeo_processes_dask.process_implementations.cubes._filter import _reproject_bbox
 from openeo_processes_dask.process_implementations.exceptions import OpenEOException
 
-from openeo_processes_dask_ml.process_implementations.utils import stac_utils
+from openeo_processes_dask_ml.process_implementations import constants
+from openeo_processes_dask_ml.process_implementations.utils import (
+    download_utils,
+    stac_utils,
+    zip_utils,
+)
 
 
 def _get_item_time(stac_item: pystac.Item) -> Datetime:
@@ -64,13 +72,110 @@ def _match_geom_in_list(
     return None
 
 
-def load_zarr():
-    # if url ends with .zip: download to cache, unzip
-    # check number of data variables: if 1: load this, if more: check if one is called "embeddings"
+def _load_zarr(path: str, bbox: BoundingBox) -> xr.DataArray:
+    """
+    Load a zarr store into an xarray.DataArray.
 
-    # if it does not end with zip: load remotely from zarr store
+    The `path` may point to a local file or a remote URL. If it ends in
+    ".zip" the archive is (downloaded and) extracted into the cache dir
+    (``constants.DATA_CACHE_DIR``). The `path` acts as a stable ID: if the
+    corresponding extracted store already exists in the cache it is reused
+    without re-downloading or re-extracting.
+    """
+    cache_dir = Path(constants.DATA_CACHE_DIR)
+    cache_dir.mkdir(parents=True, exist_ok=True)
 
-    pass
+    if zip_utils.is_zip(path):
+        store_path = _get_extracted_store(path, cache_dir)
+    else:
+        # Not a zip: open directly (local path or remote store).
+        store_path = path
+
+    ds = xr.open_zarr(store_path)
+
+    data_vars = list(ds.data_vars)
+    if len(data_vars) == 1:
+        var_name = data_vars[0]
+    elif "embeddings" in ds.data_vars:
+        var_name = "embeddings"
+    else:
+        raise KeyError(
+            f"Store has multiple variables {data_vars} and no 'embeddings' variable."
+        )
+
+    embedding_datacube = ds[var_name]
+
+    # todo filter by bbox and time
+
+    return embedding_datacube
+
+
+def _get_extracted_store(path: str, cache_dir: Path) -> Path:
+    """
+    Ensure the zip referenced by `path` is extracted in the cache dir and
+    return the path to the extracted zarr store. Uses `path` as the ID so
+    work is not repeated.
+    """
+    # Derive a stable, unique directory name from the full path (the "ID").
+    path_id = hashlib.sha256(path.encode("utf-8")).hexdigest()[:16]
+    zip_stem = Path(urlparse(path).path).stem  # nice human-readable suffix
+    extract_dir = cache_dir / f"{zip_stem}_{path_id}"
+
+    # If already extracted, reuse it.
+    if extract_dir.exists() and any(extract_dir.iterdir()):
+        return _find_store(extract_dir)
+
+    extract_dir.mkdir(parents=True, exist_ok=True)
+
+    if _is_local_path(path):
+        local_zip = Path(path)
+        if not local_zip.is_file():
+            raise FileNotFoundError(f"Local zip not found: {path}")
+        zip_utils.extract_zip_archive(local_zip, extract_dir)
+        # Original local file is left untouched.
+    else:
+        # Remote: download into cache, extract, then delete the downloaded zip.
+        downloaded_zip = cache_dir / f"{path_id}.zip"
+        try:
+            # _download(path, downloaded_zip)
+            # _extract_zip(downloaded_zip, extract_dir)
+            download_utils.download(path, target_path=downloaded_zip)
+            zip_utils.extract_zip_archive(downloaded_zip, extract_dir)
+        finally:
+            if downloaded_zip.exists():
+                downloaded_zip.unlink()
+
+    return _find_store(extract_dir)
+
+
+def _is_local_path(path: str) -> bool:
+    """Return True if `path` refers to a file on the local machine."""
+    parsed = urlparse(path)
+    # No scheme, or a file:// scheme, or a Windows drive letter -> local.
+    if parsed.scheme in ("", "file"):
+        return True
+    if len(parsed.scheme) == 1:  # e.g. "C:\..." parsed as scheme "c"
+        return True
+    return False
+
+
+def _find_store(extract_dir: Path) -> Path:
+    """
+    Locate the zarr store inside `extract_dir`. Handles the common case
+    where a zip contains a single top-level folder (the store itself).
+    """
+    # A .zarr directory anywhere near the top is the store.
+    zarr_dirs = list(extract_dir.glob("*.zarr")) + list(extract_dir.glob("*/*.zarr"))
+    if zarr_dirs:
+        return zarr_dirs[0]
+
+    # Otherwise, if there's a single top-level entry, assume it's the store.
+    entries = [p for p in extract_dir.iterdir() if not p.name.startswith("__")]
+    if len(entries) == 1 and entries[0].is_dir():
+        return entries[0]
+
+    # Fall back to the extraction dir itself.
+    return extract_dir
 
 
 def _load_tiff(path: str) -> xr.DataArray:
@@ -242,6 +347,11 @@ def _load_embedding_item(
     ):
         emb_cube = _load_parquet_item(path, bbox, to_epsg_4326)
         emb_cube = emb_cube.expand_dims({"time": [time]})
+        return emb_cube
+
+    # zarr store
+    if media_type.startswith("application/vnd.zarr"):
+        emb_cube = _load_zarr(path, bbox)
         return emb_cube
 
     # if parquet: load_parquet
@@ -503,6 +613,9 @@ def _load_embedding_collection(
             collection, items, asset_name, spatial_extent
         )
         return embedding_cube
+
+    # how to deal with collection of zarr-items?
+    # how to deal with collectino with collection-asset?
 
     raise NotImplementedError(f"Cannot read embeddings of type {emb_data_format}")
 
