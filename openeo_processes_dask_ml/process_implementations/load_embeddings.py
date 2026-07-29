@@ -1,5 +1,6 @@
 import hashlib
 import json
+import warnings
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime as Datetime
 from pathlib import Path
@@ -10,12 +11,13 @@ import dask_geopandas
 import fsspec
 import geopandas as gpd
 import numpy as np
+import pandas as pd
 import pyarrow
 import pyarrow.parquet as pq
 import pyproj
 import pystac
 import pystac_client
-import rioxarray
+import rioxarray  # dont remove (even if your IDE says it is unused)
 import shapely
 import xarray as xr
 import xvec  # dont remove (even if your IDE says it is unused)
@@ -24,12 +26,17 @@ from dask.delayed import delayed
 from numpy.typing import NDArray
 from openeo_pg_parser_networkx.pg_schema import BoundingBox, TemporalInterval
 from openeo_processes_dask.process_implementations.cubes._filter import _reproject_bbox
-from openeo_processes_dask.process_implementations.exceptions import OpenEOException
+from openeo_processes_dask.process_implementations.exceptions import (
+    DimensionMissing,
+    OpenEOException,
+)
 
 from openeo_processes_dask_ml.process_implementations import constants
 from openeo_processes_dask_ml.process_implementations.utils import (
+    dim_utils,
     download_utils,
     stac_utils,
+    zarr_utils,
     zip_utils,
 )
 
@@ -72,7 +79,30 @@ def _match_geom_in_list(
     return None
 
 
-def _load_zarr(path: str, bbox: BoundingBox) -> xr.DataArray:
+def _monotonic_bounds_slice(coord_values, lo, hi):
+    """
+    Return a contiguous slice selecting coords within [lo, hi],
+    working for both ascending and descending coordinates.
+    """
+    coord_values = np.asarray(coord_values)
+
+    # normalize the requested range
+    if lo > hi:
+        lo, hi = hi, lo
+
+    mask = (coord_values >= lo) & (coord_values <= hi)
+    idx = np.flatnonzero(mask)
+
+    if idx.size == 0:
+        return None  # no overlap
+
+    # idx is contiguous for monotonic coords (either direction)
+    return slice(int(idx[0]), int(idx[-1]) + 1)
+
+
+def _load_zarr(
+    path: str, bbox: BoundingBox | None, temporal_extent: TemporalInterval
+) -> xr.DataArray:
     """
     Load a zarr store into an xarray.DataArray.
 
@@ -91,21 +121,102 @@ def _load_zarr(path: str, bbox: BoundingBox) -> xr.DataArray:
         # Not a zip: open directly (local path or remote store).
         store_path = path
 
-    ds = xr.open_zarr(store_path, decode_coords="all")
+    ds = zarr_utils.open_zarr_auto(store_path)
+
+    # inspect for CRS:
+    crs = ds.rio.crs
+    if crs is not None:
+        if "spatial_ref" not in ds.coords:
+            ds.rio.write_crs(crs, inplace=True)
+    else:
+        warnings.warn("Could not detect a CRS in the zarr store. Assuming EPSG:4326")
 
     data_vars = list(ds.data_vars)
     if len(data_vars) == 1:
         var_name = data_vars[0]
     elif "embeddings" in ds.data_vars:
         var_name = "embeddings"
+    elif "embedding" in ds.data_vars:
+        var_name = "embedding"
     else:
         raise KeyError(
-            f"Store has multiple variables {data_vars} and no 'embeddings' variable."
+            f"Store has multiple variables {data_vars}, and no 'embedding' or "
+            f"'embeddings' variable."
         )
 
-    embedding_datacube = ds[var_name]
+    embedding_datacube = ds[var_name].drop_attrs()
 
-    # todo filter by bbox and time
+    # rename band dimension to embedding dimension
+    try:
+        band_dim = dim_utils.get_band_dim_name(embedding_datacube)
+        embedding_datacube = embedding_datacube.rename({band_dim: "embedding"})
+    except DimensionMissing:
+        pass
+
+    # make proper temporal dimension
+    try:
+        time_dim = dim_utils.get_time_dim_name(embedding_datacube)
+    except DimensionMissing:
+        time_dim = None
+    if time_dim is not None:
+        time_coords = embedding_datacube.coords[time_dim].values
+        time_dim_dtype = embedding_datacube.coords[time_dim].dtype
+
+        if not np.issubdtype(time_dim_dtype, np.datetime64):
+            if np.issubdtype(time_dim_dtype, np.integer) and max(time_coords) < 3000:
+                # if temp dim is type int and below 3000, we assume they are years
+                new_time_coords = pd.to_datetime(time_coords, format="%Y")
+            elif np.issubdtype(time_dim_dtype, np.integer) and max(time_coords) >= 3000:
+                # if temp dim is type int and above 3000, we assume unix epochs
+                # i.e. seconds since Jan 1, 1970
+                new_time_coords = pd.to_datetime(time_coords, unit="s")
+            else:
+                raise NotImplementedError(
+                    f"No time decodeing implemented for temporal dimension of"
+                    f" dtype {time_dim_dtype}"
+                )
+            embedding_datacube = embedding_datacube.assign_coords(
+                {time_dim: new_time_coords}
+            )
+
+    # todo: prevent loading huge zarr stores without bbox
+
+    if bbox is not None:
+        if crs is not None:
+            crs_str = crs.to_string()
+        else:
+            crs_str = "EPSG:4326"
+
+        bbox_reproj = _reproject_bbox(bbox, target_crs=crs_str)
+        x_start, x_end = bbox_reproj.east, bbox_reproj.west
+        y_start, y_end = bbox_reproj.south, bbox_reproj.north
+
+        x_coord_name, y_coord_name = dim_utils.get_spatial_dim_names(embedding_datacube)
+
+        x_coord_values = embedding_datacube.coords[x_coord_name].values
+        y_coord_values = embedding_datacube.coords[y_coord_name].values
+
+        x_slice = _monotonic_bounds_slice(x_coord_values, x_start, x_end)
+        y_slice = _monotonic_bounds_slice(y_coord_values, y_start, y_end)
+
+        if x_slice is None or y_slice is None:
+            raise ValueError("Bounding box does not intersect the datacube")
+
+        embedding_datacube = embedding_datacube.isel(
+            {x_coord_name: x_slice, y_coord_name: y_slice}
+        )
+
+    if temporal_extent is not None and time_dim is not None:
+        t_start = temporal_extent.start.to_numpy()
+        t_end = temporal_extent.end.to_numpy()
+
+        # 1-D time coord is tiny -> pull it into memory (this is cheap)
+        time_vals = np.asarray(embedding_datacube.coords[time_dim].values)
+
+        # boolean mask for the requested range, then integer positions
+        mask = (time_vals >= t_start) & (time_vals <= t_end)
+        idx = np.flatnonzero(mask)
+        embedding_datacube = embedding_datacube.isel({time_dim: idx})
 
     return embedding_datacube
 
@@ -285,7 +396,6 @@ def _load_parquet_item(
         emb_size = emb_col_dtype.list_size
         emb_dtype = emb_col_dtype.value_type.to_pandas_dtype()
     else:
-        print(emb_col_dtype)
         raise NotImplementedError(
             f"Embedding column data type is {str(emb_col_dtype)} which is unsupported."
             f"Must be FixedSizeList"
@@ -323,6 +433,7 @@ def _load_embedding_item(
     stac_item: pystac.Item,
     asset_name: str,
     bbox: BoundingBox | None,
+    temporal_extent: TemporalInterval | None,
     to_epsg_4326: bool = False,
 ) -> xr.DataArray:
     embedding_asset = stac_item.assets[asset_name]
@@ -333,7 +444,7 @@ def _load_embedding_item(
     # we assume that embeddings as tif or parquet are purely spatial
     # if its it zarr, it can be spatial or spatio-temporal
 
-    # load geotif file
+    # (geo)tif: does not hold embs of multiple timesteps: temp_extent is ignored
     if media_type.startswith("image/tif"):  # todo: to_epsg_4326, bbox
         footprint = shapely.from_geojson(json.dumps(stac_item.geometry))
         emb_cube = _load_tiff(path)
@@ -341,7 +452,8 @@ def _load_embedding_item(
 
         return emb_cube
 
-    # if parquet file:
+    # parquet file:
+    # todo: handle temporal parquet
     if media_type.startswith("application/x-parquet") or media_type.startswith(
         "application/vnd.apache.parquet"
     ):
@@ -351,7 +463,7 @@ def _load_embedding_item(
 
     # zarr store
     if media_type.startswith("application/vnd.zarr"):
-        emb_cube = _load_zarr(path, bbox)
+        emb_cube = _load_zarr(path, bbox, temporal_extent)
         return emb_cube
 
     # if parquet: load_parquet
@@ -636,7 +748,9 @@ def load_embeddings(
         raise OpenEOException("Provided URL does not point to a valid STAC object")
 
     if isinstance(stac_obj, pystac.Item):
-        return _load_embedding_item(stac_obj, asset_name, spatial_extent, False)
+        return _load_embedding_item(
+            stac_obj, asset_name, spatial_extent, temporal_extent, False
+        )
     elif isinstance(stac_obj, pystac.Collection):
         return _load_embedding_collection(
             url, stac_obj, spatial_extent, temporal_extent, asset_name
