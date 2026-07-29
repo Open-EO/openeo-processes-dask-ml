@@ -121,7 +121,7 @@ def _set_stac_embedding_asset_metadata_raster(
     stac_metadata: dict, out_path: Path
 ) -> dict:
     stac_metadata["assets"]["embeddings"]["href"] = str(out_path.absolute())
-    stac_metadata["assets"]["embeddings"]["type"] = "application/vnd+zarr"
+    stac_metadata["assets"]["embeddings"]["type"] = "application/vnd.zarr"
     return stac_metadata
 
 
