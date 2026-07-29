@@ -335,7 +335,7 @@ def test_load_embedding_item_tiff():
     item = pystac.Item.from_file("tests/data/item_tif.json")
     asset_name = "embeddings"
 
-    e_dc = load_embeddings._load_embedding_item(item, asset_name, None)
+    e_dc = load_embeddings._load_embedding_item(item, asset_name, None, None)
     assert e_dc.shape == (1, 1, 768)
     assert "geometry" in e_dc.dims
     assert "time" in e_dc.dims
@@ -349,7 +349,7 @@ def test_load_embedding_item_parquet_no_bbox(reproject_to_4326: bool):
     asset_name = "embeddings"
 
     e_dc = load_embeddings._load_embedding_item(
-        item, asset_name, None, reproject_to_4326
+        item, asset_name, None, None, reproject_to_4326
     )
 
     assert e_dc.shape == (1, 4, 4)
@@ -390,7 +390,7 @@ def test_load_embedding_item_parquet_with_bbox(reproject_to_4326: bool):
     asset_name = "embeddings"
 
     e_dc = load_embeddings._load_embedding_item(
-        item, asset_name, bbox, reproject_to_4326
+        item, asset_name, bbox, None, reproject_to_4326
     )
 
     assert e_dc.shape == (1, 2, 4)
