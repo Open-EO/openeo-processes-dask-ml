@@ -504,16 +504,37 @@ def _construct_embedding_vector_cube(
     return embedding_cube
 
 
-def _load_embedding_collection_tif(items: pystac.ItemCollection, asset_name: str):
-    item_arrays: list[list[xr.DataArray]] = []
-    time_coords = []
-    geom_coords = []
-
+def _load_embedding_collection_tif(
+    items: pystac.ItemCollection,
+    asset_name: str,
+    max_workers: int = 16,
+):
+    # 1. Extract metadata + paths first (cheap, keeps ordering)
+    loaded = []
+    print("load items")
     for stac_item in items:
         path = stac_item.assets[asset_name].href
         footprint = shapely.from_geojson(json.dumps(stac_item.geometry)).normalize()
         time = _get_item_time(stac_item)
-        emb_cube = _load_tiff(path)
+        loaded.append({"path": path, "footprint": footprint, "time": time})
+    print("done loading items")
+
+    # 2. Load all tiffs concurrently
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        emb_cubes = list(executor.map(lambda e: _load_tiff(e["path"]), loaded))
+
+    for entry, cube in zip(loaded, emb_cubes):
+        entry["cube"] = cube
+
+    # 3. Assemble the cube (serial, fast, preserves original order)
+    item_arrays: list[list[xr.DataArray]] = []
+    time_coords = []
+    geom_coords = []
+
+    for entry in loaded:
+        time = entry["time"]
+        footprint = entry["footprint"]
+        emb_cube = entry["cube"]
 
         if time not in time_coords:
             time_coords.append(time)
@@ -531,10 +552,7 @@ def _load_embedding_collection_tif(items: pystac.ItemCollection, asset_name: str
 
         item_arrays[time_index][footprint_index] = emb_cube
 
-    embedding_cube = _construct_embedding_vector_cube(
-        item_arrays, geom_coords, time_coords
-    )
-    return embedding_cube
+    return _construct_embedding_vector_cube(item_arrays, geom_coords, time_coords)
 
 
 def _crs_of(href: str) -> str:
