@@ -1,4 +1,5 @@
 import difflib
+from typing import Union
 
 import xarray as xr
 from openeo_processes_dask.process_implementations.exceptions import DimensionMissing
@@ -14,10 +15,11 @@ x_dim_options = ["x", "lon", "lng", "longitude"]
 y_dim_options = ["y", "lat", "latitude"]
 spatial_dim_options = [*x_dim_options, *y_dim_options]
 batch_dim_options = ["batch", "batches"]
+embedding_dim_options = ["embedding", "embeddings"]
 
 
 def _find_alternative_dim_name_in_datacube(
-    dc: xr.DataArray, dim_name_options: list[str]
+    dc: Union[xr.DataArray, xr.Dataset], dim_name_options: list[str]
 ) -> str:
     """
     Identify a dimension in a datacube based on a list of possible dimension names
@@ -34,7 +36,7 @@ def _find_alternative_dim_name_in_datacube(
     )
 
 
-def get_band_dim_name(dc: xr.DataArray) -> str:
+def get_band_dim_name(dc: Union[xr.DataArray, xr.Dataset]) -> str:
     """
     Identifies the bands dimension in a data cube.
     :param dc: The datacube
@@ -51,7 +53,7 @@ def get_band_dim_name(dc: xr.DataArray) -> str:
         )
 
 
-def get_time_dim_name(dc: xr.DataArray) -> str:
+def get_time_dim_name(dc: Union[xr.DataArray, xr.Dataset]) -> str:
     """
     Identifies the time dimension in a data cube.
     :param dc: The datacube
@@ -68,7 +70,7 @@ def get_time_dim_name(dc: xr.DataArray) -> str:
         )
 
 
-def get_x_dim_name(dc: xr.DataArray) -> str:
+def get_x_dim_name(dc: Union[xr.DataArray, xr.Dataset]) -> str:
     """
     Identifies the X dimension in a data cube.
     :param dc: The datacube
@@ -85,7 +87,7 @@ def get_x_dim_name(dc: xr.DataArray) -> str:
         )
 
 
-def get_y_dim_name(dc: xr.DataArray) -> str:
+def get_y_dim_name(dc: Union[xr.DataArray, xr.Dataset]) -> str:
     """
     Identifies the Y dimension in a data cube.
     :param dc: The datacube
@@ -102,7 +104,7 @@ def get_y_dim_name(dc: xr.DataArray) -> str:
         )
 
 
-def get_spatial_dim_names(dc: xr.DataArray) -> tuple[str, str]:
+def get_spatial_dim_names(dc: Union[xr.DataArray, xr.Dataset]) -> tuple[str, str]:
     """
     Identifies the spatial dimensions in a data cube.
     :param dc: The datacube
@@ -112,6 +114,13 @@ def get_spatial_dim_names(dc: xr.DataArray) -> tuple[str, str]:
     x_dim_name = get_x_dim_name(dc)
     y_dim_name = get_y_dim_name(dc)
     return x_dim_name, y_dim_name
+
+
+def get_embedding_dim_name(dc: Union[xr.DataArray, xr.Dataset]) -> str:
+    try:
+        return _find_alternative_dim_name_in_datacube(dc, embedding_dim_options)
+    except ValueError:
+        raise DimensionMissing("Could not find an embedding dimension in the datacube")
 
 
 def get_alternative_datacube_dim_name(dc: xr.DataArray, dim_name: str) -> str | None:

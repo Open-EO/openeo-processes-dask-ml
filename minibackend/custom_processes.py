@@ -5,13 +5,12 @@ import zipfile
 from pathlib import Path
 from typing import Optional
 
-import dask.array as da
 import numpy as np
 import pandas as pd
 import pystac_client
 import xarray as xr
 
-from opd_ml_dev_utils.get_datacube import load_stac, load_stac_with_cache
+from opd_ml_dev_utils.get_datacube import load_stac_with_cache, load_stac_without_cache
 
 logger = logging.getLogger(__name__)
 
@@ -107,8 +106,6 @@ def load_collection(
         collection_url, spatial_extent, temporal_extent, bands, resolved_properties
     )
 
-    dc = dc.chunk({"time": 1, "bands": -1, "x": 200, "y": 200})
-
     return dc
 
 
@@ -185,19 +182,16 @@ def _save_geotiff(data: xr.DataArray, filename: str):
 
 
 def _save_zarr(data: xr.DataArray, filename: str):
-    return data.to_zarr(filename, compute=False)
+    return data.to_zarr(filename, zarr_version=3, consolidated=True, compute=False)
 
 
 def save_result(data: xr.DataArray, format: str, options=None):
     # No generic implementation available, so need to implement locally!
 
-    print("Result Datacube")
-    print(data)
-
     format = format.lower()
 
     result_id = uuid.uuid4()
-    out_dir = OPENEO_RESULTS_PATH + str(result_id) + "/"
+    out_dir = OPENEO_RESULTS_PATH + "/" + str(result_id) + "/"
 
     os.makedirs(out_dir, exist_ok=True)
 

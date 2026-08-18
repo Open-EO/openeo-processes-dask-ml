@@ -14,9 +14,9 @@ def run_openeo_ml_predict(model_url: str):
     process_graph = {
         "process_graph": {
             "load_data": {
-                "process_id": "load_stac",
+                "process_id": "load_collection",
                 "arguments": {
-                    "url": "https://earth-search.aws.element84.com/v1/collections/sentinel-2-l2a",
+                    "id": "sentinel-2-l2a",
                     "spatial_extent": {
                         "west": 8.2,
                         "east": 8.5,
@@ -46,6 +46,7 @@ def run_openeo_ml_predict(model_url: str):
                 "arguments": {
                     "uri": model_url,
                     "model_asset": "weights",
+                    "output_index": 2,
                 },
             },
             "predict": {
@@ -56,8 +57,8 @@ def run_openeo_ml_predict(model_url: str):
                 },
             },
             "save": {
-                "process_id": "save_result",
-                "arguments": {"data": {"from_node": "predict"}, "format": "Zarr"},
+                "process_id": "save_embeddings",
+                "arguments": {"data": {"from_node": "predict"}},
                 "result": True,
             },
         },
@@ -65,8 +66,10 @@ def run_openeo_ml_predict(model_url: str):
     }
 
     out = execute_graph_dict(process_graph)  # output datacube is lazy
+    print("lazy result object", out)
+    print("computing results now")
     out = out.compute()  # compute the datacube
-    print("Finnished!")
+    print("Saved results", out)
 
 
 if __name__ == "__main__":

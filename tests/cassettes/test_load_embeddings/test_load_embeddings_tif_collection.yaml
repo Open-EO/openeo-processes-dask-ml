@@ -1,0 +1,305 @@
+interactions:
+- request:
+    body: null
+    headers:
+      Accept:
+      - '*/*'
+      Accept-Encoding:
+      - gzip, deflate, br
+      Connection:
+      - keep-alive
+      User-Agent:
+      - python-requests/2.32.5
+    method: GET
+    uri: http://localhost:8082/collections/terramind_embeddings
+  response:
+    body:
+      string: '{"id":"terramind_embeddings","type":"Collection","links":[{"rel":"items","type":"application/geo+json","href":"http://localhost:8082/collections/terramind_embeddings/items"},{"rel":"parent","type":"application/json","href":"http://localhost:8082/"},{"rel":"root","type":"application/json","href":"http://localhost:8082/"},{"rel":"self","type":"application/json","href":"http://localhost:8082/collections/terramind_embeddings"},{"rel":"emb:model","href":"https://example.com/terramind-stac-MLM-item","type":"application/json","title":"Terramind
+        Sentinel-2 encoder"},{"rel":"emb:source-data","href":"https://stac.dataspace.copernicus.eu/v1/collections/sentinel-2-l2a","type":"application/json","title":"Collection
+        of Sentinel-2-L2A images"},{"rel":"http://www.opengis.net/def/rel/ogc/1.0/queryables","type":"application/schema+json","title":"Queryables","href":"http://localhost:8082/collections/terramind_embeddings/queryables"}],"title":"Terramind
+        embeddings","extent":{"spatial":{"bbox":[[-180,-90,180,90]]},"temporal":{"interval":[["1970-01-01T11:00:00.000Z","2030-12-31T23:59:59.999Z"]]}},"license":"CC-BY-4.0","emb:type":"patch","keywords":["terramind","embeddings","collection"],"data_type":"float32","providers":[{"url":"https://embed2scale.eu","name":"Embed2Scale","roles":["producer","processor"],"description":"EU
+        Horizon Embed2Scale Project, GA Number 101131841"}],"description":"A collection
+        of pre-computed terramind embeddings","stac_version":"1.1.0","emb:dimensions":768,"stac_extensions":["https://stac-extensions.github.io/embeddings/v0.0.1/schema.json"]}'
+    headers:
+      content-encoding:
+      - br
+      content-length:
+      - '651'
+      content-type:
+      - application/json
+      date:
+      - Tue, 21 Jul 2026 09:53:22 GMT
+      server:
+      - uvicorn
+      vary:
+      - Accept-Encoding
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      Accept:
+      - '*/*'
+      Accept-Encoding:
+      - gzip, deflate, br
+      Connection:
+      - keep-alive
+      User-Agent:
+      - python-requests/2.32.5
+    method: GET
+    uri: http://localhost:8082/
+  response:
+    body:
+      string: '{"type":"Catalog","id":"stac-fastapi","title":"stac-fastapi","description":"stac-fastapi","stac_version":"1.0.0","conformsTo":["http://www.opengis.net/spec/cql2/1.0/conf/basic-cql2","http://www.opengis.net/spec/cql2/1.0/conf/cql2-json","http://www.opengis.net/spec/cql2/1.0/conf/cql2-text","http://www.opengis.net/spec/ogcapi-common-2/1.0/conf/simple-query","http://www.opengis.net/spec/ogcapi-features-1/1.0/conf/core","http://www.opengis.net/spec/ogcapi-features-1/1.0/conf/geojson","http://www.opengis.net/spec/ogcapi-features-1/1.0/conf/oas30","http://www.opengis.net/spec/ogcapi-features-3/1.0/conf/features-filter","http://www.opengis.net/spec/ogcapi-features-3/1.0/conf/filter","https://api.stacspec.org/v1.0.0-rc.1/collection-search","https://api.stacspec.org/v1.0.0-rc.1/collection-search#fields","https://api.stacspec.org/v1.0.0-rc.1/collection-search#filter","https://api.stacspec.org/v1.0.0-rc.1/collection-search#free-text","https://api.stacspec.org/v1.0.0-rc.1/collection-search#query","https://api.stacspec.org/v1.0.0-rc.1/collection-search#sort","https://api.stacspec.org/v1.0.0-rc.2/item-search#filter","https://api.stacspec.org/v1.0.0/collections","https://api.stacspec.org/v1.0.0/core","https://api.stacspec.org/v1.0.0/item-search","https://api.stacspec.org/v1.0.0/item-search#fields","https://api.stacspec.org/v1.0.0/item-search#query","https://api.stacspec.org/v1.0.0/item-search#sort","https://api.stacspec.org/v1.0.0/ogcapi-features","https://api.stacspec.org/v1.0.0/ogcapi-features#fields","https://api.stacspec.org/v1.0.0/ogcapi-features#query","https://api.stacspec.org/v1.0.0/ogcapi-features#sort"],"links":[{"rel":"self","type":"application/json","title":"This
+        document","href":"http://localhost:8082/"},{"rel":"root","type":"application/json","title":"Root","href":"http://localhost:8082/"},{"rel":"data","type":"application/json","title":"Collections
+        available for this Catalog","href":"http://localhost:8082/collections"},{"rel":"conformance","type":"application/json","title":"STAC/OGC
+        conformance classes implemented by this server","href":"http://localhost:8082/conformance"},{"rel":"search","type":"application/geo+json","title":"STAC
+        search [GET]","href":"http://localhost:8082/search","method":"GET"},{"rel":"search","type":"application/geo+json","title":"STAC
+        search [POST]","href":"http://localhost:8082/search","method":"POST"},{"rel":"http://www.opengis.net/def/rel/ogc/1.0/queryables","type":"application/schema+json","title":"Queryables
+        available for this Catalog","href":"http://localhost:8082/queryables","method":"GET"},{"rel":"service-desc","type":"application/vnd.oai.openapi+json;version=3.0","title":"OpenAPI
+        service description","href":"http://localhost:8082/api"},{"rel":"service-doc","type":"text/html","title":"OpenAPI
+        service documentation","href":"http://localhost:8082/api.html"}],"stac_extensions":[]}'
+    headers:
+      content-encoding:
+      - br
+      content-length:
+      - '651'
+      content-type:
+      - application/json
+      date:
+      - Tue, 21 Jul 2026 09:53:22 GMT
+      server:
+      - uvicorn
+      vary:
+      - Accept-Encoding
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      Accept:
+      - '*/*'
+      Accept-Encoding:
+      - gzip, deflate, br
+      Connection:
+      - keep-alive
+      User-Agent:
+      - python-requests/2.32.5
+    method: GET
+    uri: http://localhost:8082/
+  response:
+    body:
+      string: '{"type":"Catalog","id":"stac-fastapi","title":"stac-fastapi","description":"stac-fastapi","stac_version":"1.0.0","conformsTo":["http://www.opengis.net/spec/cql2/1.0/conf/basic-cql2","http://www.opengis.net/spec/cql2/1.0/conf/cql2-json","http://www.opengis.net/spec/cql2/1.0/conf/cql2-text","http://www.opengis.net/spec/ogcapi-common-2/1.0/conf/simple-query","http://www.opengis.net/spec/ogcapi-features-1/1.0/conf/core","http://www.opengis.net/spec/ogcapi-features-1/1.0/conf/geojson","http://www.opengis.net/spec/ogcapi-features-1/1.0/conf/oas30","http://www.opengis.net/spec/ogcapi-features-3/1.0/conf/features-filter","http://www.opengis.net/spec/ogcapi-features-3/1.0/conf/filter","https://api.stacspec.org/v1.0.0-rc.1/collection-search","https://api.stacspec.org/v1.0.0-rc.1/collection-search#fields","https://api.stacspec.org/v1.0.0-rc.1/collection-search#filter","https://api.stacspec.org/v1.0.0-rc.1/collection-search#free-text","https://api.stacspec.org/v1.0.0-rc.1/collection-search#query","https://api.stacspec.org/v1.0.0-rc.1/collection-search#sort","https://api.stacspec.org/v1.0.0-rc.2/item-search#filter","https://api.stacspec.org/v1.0.0/collections","https://api.stacspec.org/v1.0.0/core","https://api.stacspec.org/v1.0.0/item-search","https://api.stacspec.org/v1.0.0/item-search#fields","https://api.stacspec.org/v1.0.0/item-search#query","https://api.stacspec.org/v1.0.0/item-search#sort","https://api.stacspec.org/v1.0.0/ogcapi-features","https://api.stacspec.org/v1.0.0/ogcapi-features#fields","https://api.stacspec.org/v1.0.0/ogcapi-features#query","https://api.stacspec.org/v1.0.0/ogcapi-features#sort"],"links":[{"rel":"self","type":"application/json","title":"This
+        document","href":"http://localhost:8082/"},{"rel":"root","type":"application/json","title":"Root","href":"http://localhost:8082/"},{"rel":"data","type":"application/json","title":"Collections
+        available for this Catalog","href":"http://localhost:8082/collections"},{"rel":"conformance","type":"application/json","title":"STAC/OGC
+        conformance classes implemented by this server","href":"http://localhost:8082/conformance"},{"rel":"search","type":"application/geo+json","title":"STAC
+        search [GET]","href":"http://localhost:8082/search","method":"GET"},{"rel":"search","type":"application/geo+json","title":"STAC
+        search [POST]","href":"http://localhost:8082/search","method":"POST"},{"rel":"http://www.opengis.net/def/rel/ogc/1.0/queryables","type":"application/schema+json","title":"Queryables
+        available for this Catalog","href":"http://localhost:8082/queryables","method":"GET"},{"rel":"service-desc","type":"application/vnd.oai.openapi+json;version=3.0","title":"OpenAPI
+        service description","href":"http://localhost:8082/api"},{"rel":"service-doc","type":"text/html","title":"OpenAPI
+        service documentation","href":"http://localhost:8082/api.html"}],"stac_extensions":[]}'
+    headers:
+      content-encoding:
+      - br
+      content-length:
+      - '651'
+      content-type:
+      - application/json
+      date:
+      - Tue, 21 Jul 2026 09:53:22 GMT
+      server:
+      - uvicorn
+      vary:
+      - Accept-Encoding
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      Accept:
+      - '*/*'
+      Accept-Encoding:
+      - gzip, deflate, br
+      Connection:
+      - keep-alive
+      User-Agent:
+      - python-requests/2.32.5
+    method: GET
+    uri: http://localhost:8082/
+  response:
+    body:
+      string: '{"type":"Catalog","id":"stac-fastapi","title":"stac-fastapi","description":"stac-fastapi","stac_version":"1.0.0","conformsTo":["http://www.opengis.net/spec/cql2/1.0/conf/basic-cql2","http://www.opengis.net/spec/cql2/1.0/conf/cql2-json","http://www.opengis.net/spec/cql2/1.0/conf/cql2-text","http://www.opengis.net/spec/ogcapi-common-2/1.0/conf/simple-query","http://www.opengis.net/spec/ogcapi-features-1/1.0/conf/core","http://www.opengis.net/spec/ogcapi-features-1/1.0/conf/geojson","http://www.opengis.net/spec/ogcapi-features-1/1.0/conf/oas30","http://www.opengis.net/spec/ogcapi-features-3/1.0/conf/features-filter","http://www.opengis.net/spec/ogcapi-features-3/1.0/conf/filter","https://api.stacspec.org/v1.0.0-rc.1/collection-search","https://api.stacspec.org/v1.0.0-rc.1/collection-search#fields","https://api.stacspec.org/v1.0.0-rc.1/collection-search#filter","https://api.stacspec.org/v1.0.0-rc.1/collection-search#free-text","https://api.stacspec.org/v1.0.0-rc.1/collection-search#query","https://api.stacspec.org/v1.0.0-rc.1/collection-search#sort","https://api.stacspec.org/v1.0.0-rc.2/item-search#filter","https://api.stacspec.org/v1.0.0/collections","https://api.stacspec.org/v1.0.0/core","https://api.stacspec.org/v1.0.0/item-search","https://api.stacspec.org/v1.0.0/item-search#fields","https://api.stacspec.org/v1.0.0/item-search#query","https://api.stacspec.org/v1.0.0/item-search#sort","https://api.stacspec.org/v1.0.0/ogcapi-features","https://api.stacspec.org/v1.0.0/ogcapi-features#fields","https://api.stacspec.org/v1.0.0/ogcapi-features#query","https://api.stacspec.org/v1.0.0/ogcapi-features#sort"],"links":[{"rel":"self","type":"application/json","title":"This
+        document","href":"http://localhost:8082/"},{"rel":"root","type":"application/json","title":"Root","href":"http://localhost:8082/"},{"rel":"data","type":"application/json","title":"Collections
+        available for this Catalog","href":"http://localhost:8082/collections"},{"rel":"conformance","type":"application/json","title":"STAC/OGC
+        conformance classes implemented by this server","href":"http://localhost:8082/conformance"},{"rel":"search","type":"application/geo+json","title":"STAC
+        search [GET]","href":"http://localhost:8082/search","method":"GET"},{"rel":"search","type":"application/geo+json","title":"STAC
+        search [POST]","href":"http://localhost:8082/search","method":"POST"},{"rel":"http://www.opengis.net/def/rel/ogc/1.0/queryables","type":"application/schema+json","title":"Queryables
+        available for this Catalog","href":"http://localhost:8082/queryables","method":"GET"},{"rel":"service-desc","type":"application/vnd.oai.openapi+json;version=3.0","title":"OpenAPI
+        service description","href":"http://localhost:8082/api"},{"rel":"service-doc","type":"text/html","title":"OpenAPI
+        service documentation","href":"http://localhost:8082/api.html"}],"stac_extensions":[]}'
+    headers:
+      content-encoding:
+      - br
+      content-length:
+      - '651'
+      content-type:
+      - application/json
+      date:
+      - Tue, 21 Jul 2026 09:53:22 GMT
+      server:
+      - uvicorn
+      vary:
+      - Accept-Encoding
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '{"bbox": [8.38, 48.02, 8.46, 48.1], "datetime": "2025-01-01T00:00:00.000000Z/2025-01-02T00:00:00.000000Z",
+      "collections": ["terramind_embeddings"]}'
+    headers:
+      Accept:
+      - '*/*'
+      Accept-Encoding:
+      - gzip, deflate, br
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '147'
+      Content-Type:
+      - application/json
+      User-Agent:
+      - python-requests/2.32.5
+    method: POST
+    uri: http://localhost:8082/search
+  response:
+    body:
+      string: '{"type":"FeatureCollection","links":[{"rel":"root","type":"application/json","href":"http://localhost:8082/"},{"rel":"self","type":"application/geo+json","href":"http://localhost:8082/search"},{"rel":"next","type":"application/geo+json","method":"POST","href":"http://localhost:8082/search","body":{"bbox":[8.38,48.02,8.46,48.1],"datetime":"2025-01-01T00:00:00.000000Z/2025-01-02T00:00:00.000000Z","collections":["terramind_embeddings"],"token":"next:terramind_embeddings:S2A_MSIL2A_20170102T175732_N0500_R141_T13TEF_20230926T044006__0-256_10724-10980_embedding_7"}}],"features":[{"id":"S2A_MSIL2A_20170102T175732_N0500_R141_T13TEF_20230926T044006__0-256_10724-10980_embedding_37","bbox":[-180,-90,180,90],"type":"Feature","links":[{"rel":"collection","type":"application/json","href":"http://localhost:8082/collections/terramind_embeddings"},{"rel":"parent","type":"application/json","href":"http://localhost:8082/collections/terramind_embeddings"},{"rel":"root","type":"application/json","href":"http://localhost:8082/"},{"rel":"self","type":"application/geo+json","href":"http://localhost:8082/collections/terramind_embeddings/items/S2A_MSIL2A_20170102T175732_N0500_R141_T13TEF_20230926T044006__0-256_10724-10980_embedding_37"},{"rel":"emb:source-data","href":"https://stac.dataspace.copernicus.eu/v1/collections/sentinel-2-l2a/items/S2A_MSIL2A_20170102T175732_N0500_R141_T13TEF_20230926T044006","type":"application/json","title":"Sentinel-2
+        image from which this embedding was computed."}],"assets":{"embeddings":{"href":"tests/data/embedding_1x1.tif","type":"image/tiff","roles":["embedding"],"title":"AEF
+        embeddings"}},"geometry":{"type":"Polygon","coordinates":[[[8.44,48.08],[8.44,48.12],[8.479999999999999,48.12],[8.479999999999999,48.08],[8.44,48.08]]]},"collection":"terramind_embeddings","properties":{"gsd":10,"title":"Terramind
+        Embedding","datetime":"2025-01-02T00:00:00","licensing":" CC-BY 4.0","description":"Terramind
+        embedding from Sentinel-2-L2A imagery."},"stac_version":"1.1.0","stac_extensions":[]},{"id":"S2A_MSIL2A_20170102T175732_N0500_R141_T13TEF_20230926T044006__0-256_10724-10980_embedding_36","bbox":[-180,-90,180,90],"type":"Feature","links":[{"rel":"collection","type":"application/json","href":"http://localhost:8082/collections/terramind_embeddings"},{"rel":"parent","type":"application/json","href":"http://localhost:8082/collections/terramind_embeddings"},{"rel":"root","type":"application/json","href":"http://localhost:8082/"},{"rel":"self","type":"application/geo+json","href":"http://localhost:8082/collections/terramind_embeddings/items/S2A_MSIL2A_20170102T175732_N0500_R141_T13TEF_20230926T044006__0-256_10724-10980_embedding_36"},{"rel":"emb:source-data","href":"https://stac.dataspace.copernicus.eu/v1/collections/sentinel-2-l2a/items/S2A_MSIL2A_20170102T175732_N0500_R141_T13TEF_20230926T044006","type":"application/json","title":"Sentinel-2
+        image from which this embedding was computed."}],"assets":{"embeddings":{"href":"tests/data/embedding_1x1.tif","type":"image/tiff","roles":["embedding"],"title":"AEF
+        embeddings"}},"geometry":{"type":"Polygon","coordinates":[[[8.44,48.04],[8.44,48.08],[8.479999999999999,48.08],[8.479999999999999,48.04],[8.44,48.04]]]},"collection":"terramind_embeddings","properties":{"gsd":10,"title":"Terramind
+        Embedding","datetime":"2025-01-02T00:00:00","licensing":" CC-BY 4.0","description":"Terramind
+        embedding from Sentinel-2-L2A imagery."},"stac_version":"1.1.0","stac_extensions":[]},{"id":"S2A_MSIL2A_20170102T175732_N0500_R141_T13TEF_20230926T044006__0-256_10724-10980_embedding_35","bbox":[-180,-90,180,90],"type":"Feature","links":[{"rel":"collection","type":"application/json","href":"http://localhost:8082/collections/terramind_embeddings"},{"rel":"parent","type":"application/json","href":"http://localhost:8082/collections/terramind_embeddings"},{"rel":"root","type":"application/json","href":"http://localhost:8082/"},{"rel":"self","type":"application/geo+json","href":"http://localhost:8082/collections/terramind_embeddings/items/S2A_MSIL2A_20170102T175732_N0500_R141_T13TEF_20230926T044006__0-256_10724-10980_embedding_35"},{"rel":"emb:source-data","href":"https://stac.dataspace.copernicus.eu/v1/collections/sentinel-2-l2a/items/S2A_MSIL2A_20170102T175732_N0500_R141_T13TEF_20230926T044006","type":"application/json","title":"Sentinel-2
+        image from which this embedding was computed."}],"assets":{"embeddings":{"href":"tests/data/embedding_1x1.tif","type":"image/tiff","roles":["embedding"],"title":"AEF
+        embeddings"}},"geometry":{"type":"Polygon","coordinates":[[[8.44,48],[8.44,48.04],[8.479999999999999,48.04],[8.479999999999999,48],[8.44,48]]]},"collection":"terramind_embeddings","properties":{"gsd":10,"title":"Terramind
+        Embedding","datetime":"2025-01-02T00:00:00","licensing":" CC-BY 4.0","description":"Terramind
+        embedding from Sentinel-2-L2A imagery."},"stac_version":"1.1.0","stac_extensions":[]},{"id":"S2A_MSIL2A_20170102T175732_N0500_R141_T13TEF_20230926T044006__0-256_10724-10980_embedding_32","bbox":[-180,-90,180,90],"type":"Feature","links":[{"rel":"collection","type":"application/json","href":"http://localhost:8082/collections/terramind_embeddings"},{"rel":"parent","type":"application/json","href":"http://localhost:8082/collections/terramind_embeddings"},{"rel":"root","type":"application/json","href":"http://localhost:8082/"},{"rel":"self","type":"application/geo+json","href":"http://localhost:8082/collections/terramind_embeddings/items/S2A_MSIL2A_20170102T175732_N0500_R141_T13TEF_20230926T044006__0-256_10724-10980_embedding_32"},{"rel":"emb:source-data","href":"https://stac.dataspace.copernicus.eu/v1/collections/sentinel-2-l2a/items/S2A_MSIL2A_20170102T175732_N0500_R141_T13TEF_20230926T044006","type":"application/json","title":"Sentinel-2
+        image from which this embedding was computed."}],"assets":{"embeddings":{"href":"tests/data/embedding_1x1.tif","type":"image/tiff","roles":["embedding"],"title":"AEF
+        embeddings"}},"geometry":{"type":"Polygon","coordinates":[[[8.399999999999999,48.08],[8.399999999999999,48.12],[8.439999999999998,48.12],[8.439999999999998,48.08],[8.399999999999999,48.08]]]},"collection":"terramind_embeddings","properties":{"gsd":10,"title":"Terramind
+        Embedding","datetime":"2025-01-02T00:00:00","licensing":" CC-BY 4.0","description":"Terramind
+        embedding from Sentinel-2-L2A imagery."},"stac_version":"1.1.0","stac_extensions":[]},{"id":"S2A_MSIL2A_20170102T175732_N0500_R141_T13TEF_20230926T044006__0-256_10724-10980_embedding_31","bbox":[-180,-90,180,90],"type":"Feature","links":[{"rel":"collection","type":"application/json","href":"http://localhost:8082/collections/terramind_embeddings"},{"rel":"parent","type":"application/json","href":"http://localhost:8082/collections/terramind_embeddings"},{"rel":"root","type":"application/json","href":"http://localhost:8082/"},{"rel":"self","type":"application/geo+json","href":"http://localhost:8082/collections/terramind_embeddings/items/S2A_MSIL2A_20170102T175732_N0500_R141_T13TEF_20230926T044006__0-256_10724-10980_embedding_31"},{"rel":"emb:source-data","href":"https://stac.dataspace.copernicus.eu/v1/collections/sentinel-2-l2a/items/S2A_MSIL2A_20170102T175732_N0500_R141_T13TEF_20230926T044006","type":"application/json","title":"Sentinel-2
+        image from which this embedding was computed."}],"assets":{"embeddings":{"href":"tests/data/embedding_1x1.tif","type":"image/tiff","roles":["embedding"],"title":"AEF
+        embeddings"}},"geometry":{"type":"Polygon","coordinates":[[[8.399999999999999,48.04],[8.399999999999999,48.08],[8.439999999999998,48.08],[8.439999999999998,48.04],[8.399999999999999,48.04]]]},"collection":"terramind_embeddings","properties":{"gsd":10,"title":"Terramind
+        Embedding","datetime":"2025-01-02T00:00:00","licensing":" CC-BY 4.0","description":"Terramind
+        embedding from Sentinel-2-L2A imagery."},"stac_version":"1.1.0","stac_extensions":[]},{"id":"S2A_MSIL2A_20170102T175732_N0500_R141_T13TEF_20230926T044006__0-256_10724-10980_embedding_30","bbox":[-180,-90,180,90],"type":"Feature","links":[{"rel":"collection","type":"application/json","href":"http://localhost:8082/collections/terramind_embeddings"},{"rel":"parent","type":"application/json","href":"http://localhost:8082/collections/terramind_embeddings"},{"rel":"root","type":"application/json","href":"http://localhost:8082/"},{"rel":"self","type":"application/geo+json","href":"http://localhost:8082/collections/terramind_embeddings/items/S2A_MSIL2A_20170102T175732_N0500_R141_T13TEF_20230926T044006__0-256_10724-10980_embedding_30"},{"rel":"emb:source-data","href":"https://stac.dataspace.copernicus.eu/v1/collections/sentinel-2-l2a/items/S2A_MSIL2A_20170102T175732_N0500_R141_T13TEF_20230926T044006","type":"application/json","title":"Sentinel-2
+        image from which this embedding was computed."}],"assets":{"embeddings":{"href":"tests/data/embedding_1x1.tif","type":"image/tiff","roles":["embedding"],"title":"AEF
+        embeddings"}},"geometry":{"type":"Polygon","coordinates":[[[8.399999999999999,48],[8.399999999999999,48.04],[8.439999999999998,48.04],[8.439999999999998,48],[8.399999999999999,48]]]},"collection":"terramind_embeddings","properties":{"gsd":10,"title":"Terramind
+        Embedding","datetime":"2025-01-02T00:00:00","licensing":" CC-BY 4.0","description":"Terramind
+        embedding from Sentinel-2-L2A imagery."},"stac_version":"1.1.0","stac_extensions":[]},{"id":"S2A_MSIL2A_20170102T175732_N0500_R141_T13TEF_20230926T044006__0-256_10724-10980_embedding_27","bbox":[-180,-90,180,90],"type":"Feature","links":[{"rel":"collection","type":"application/json","href":"http://localhost:8082/collections/terramind_embeddings"},{"rel":"parent","type":"application/json","href":"http://localhost:8082/collections/terramind_embeddings"},{"rel":"root","type":"application/json","href":"http://localhost:8082/"},{"rel":"self","type":"application/geo+json","href":"http://localhost:8082/collections/terramind_embeddings/items/S2A_MSIL2A_20170102T175732_N0500_R141_T13TEF_20230926T044006__0-256_10724-10980_embedding_27"},{"rel":"emb:source-data","href":"https://stac.dataspace.copernicus.eu/v1/collections/sentinel-2-l2a/items/S2A_MSIL2A_20170102T175732_N0500_R141_T13TEF_20230926T044006","type":"application/json","title":"Sentinel-2
+        image from which this embedding was computed."}],"assets":{"embeddings":{"href":"tests/data/embedding_1x1.tif","type":"image/tiff","roles":["embedding"],"title":"AEF
+        embeddings"}},"geometry":{"type":"Polygon","coordinates":[[[8.36,48.08],[8.36,48.12],[8.399999999999999,48.12],[8.399999999999999,48.08],[8.36,48.08]]]},"collection":"terramind_embeddings","properties":{"gsd":10,"title":"Terramind
+        Embedding","datetime":"2025-01-02T00:00:00","licensing":" CC-BY 4.0","description":"Terramind
+        embedding from Sentinel-2-L2A imagery."},"stac_version":"1.1.0","stac_extensions":[]},{"id":"S2A_MSIL2A_20170102T175732_N0500_R141_T13TEF_20230926T044006__0-256_10724-10980_embedding_26","bbox":[-180,-90,180,90],"type":"Feature","links":[{"rel":"collection","type":"application/json","href":"http://localhost:8082/collections/terramind_embeddings"},{"rel":"parent","type":"application/json","href":"http://localhost:8082/collections/terramind_embeddings"},{"rel":"root","type":"application/json","href":"http://localhost:8082/"},{"rel":"self","type":"application/geo+json","href":"http://localhost:8082/collections/terramind_embeddings/items/S2A_MSIL2A_20170102T175732_N0500_R141_T13TEF_20230926T044006__0-256_10724-10980_embedding_26"},{"rel":"emb:source-data","href":"https://stac.dataspace.copernicus.eu/v1/collections/sentinel-2-l2a/items/S2A_MSIL2A_20170102T175732_N0500_R141_T13TEF_20230926T044006","type":"application/json","title":"Sentinel-2
+        image from which this embedding was computed."}],"assets":{"embeddings":{"href":"tests/data/embedding_1x1.tif","type":"image/tiff","roles":["embedding"],"title":"AEF
+        embeddings"}},"geometry":{"type":"Polygon","coordinates":[[[8.36,48.04],[8.36,48.08],[8.399999999999999,48.08],[8.399999999999999,48.04],[8.36,48.04]]]},"collection":"terramind_embeddings","properties":{"gsd":10,"title":"Terramind
+        Embedding","datetime":"2025-01-02T00:00:00","licensing":" CC-BY 4.0","description":"Terramind
+        embedding from Sentinel-2-L2A imagery."},"stac_version":"1.1.0","stac_extensions":[]},{"id":"S2A_MSIL2A_20170102T175732_N0500_R141_T13TEF_20230926T044006__0-256_10724-10980_embedding_25","bbox":[-180,-90,180,90],"type":"Feature","links":[{"rel":"collection","type":"application/json","href":"http://localhost:8082/collections/terramind_embeddings"},{"rel":"parent","type":"application/json","href":"http://localhost:8082/collections/terramind_embeddings"},{"rel":"root","type":"application/json","href":"http://localhost:8082/"},{"rel":"self","type":"application/geo+json","href":"http://localhost:8082/collections/terramind_embeddings/items/S2A_MSIL2A_20170102T175732_N0500_R141_T13TEF_20230926T044006__0-256_10724-10980_embedding_25"},{"rel":"emb:source-data","href":"https://stac.dataspace.copernicus.eu/v1/collections/sentinel-2-l2a/items/S2A_MSIL2A_20170102T175732_N0500_R141_T13TEF_20230926T044006","type":"application/json","title":"Sentinel-2
+        image from which this embedding was computed."}],"assets":{"embeddings":{"href":"tests/data/embedding_1x1.tif","type":"image/tiff","roles":["embedding"],"title":"AEF
+        embeddings"}},"geometry":{"type":"Polygon","coordinates":[[[8.36,48],[8.36,48.04],[8.399999999999999,48.04],[8.399999999999999,48],[8.36,48]]]},"collection":"terramind_embeddings","properties":{"gsd":10,"title":"Terramind
+        Embedding","datetime":"2025-01-02T00:00:00","licensing":" CC-BY 4.0","description":"Terramind
+        embedding from Sentinel-2-L2A imagery."},"stac_version":"1.1.0","stac_extensions":[]},{"id":"S2A_MSIL2A_20170102T175732_N0500_R141_T13TEF_20230926T044006__0-256_10724-10980_embedding_7","bbox":[-180,-90,180,90],"type":"Feature","links":[{"rel":"collection","type":"application/json","href":"http://localhost:8082/collections/terramind_embeddings"},{"rel":"parent","type":"application/json","href":"http://localhost:8082/collections/terramind_embeddings"},{"rel":"root","type":"application/json","href":"http://localhost:8082/"},{"rel":"self","type":"application/geo+json","href":"http://localhost:8082/collections/terramind_embeddings/items/S2A_MSIL2A_20170102T175732_N0500_R141_T13TEF_20230926T044006__0-256_10724-10980_embedding_7"},{"rel":"emb:source-data","href":"https://stac.dataspace.copernicus.eu/v1/collections/sentinel-2-l2a/items/S2A_MSIL2A_20170102T175732_N0500_R141_T13TEF_20230926T044006","type":"application/json","title":"Sentinel-2
+        image from which this embedding was computed."}],"assets":{"embeddings":{"href":"tests/data/embedding_1x1.tif","type":"image/tiff","roles":["embedding"],"title":"AEF
+        embeddings"}},"geometry":{"type":"Polygon","coordinates":[[[8.399999999999999,48.08],[8.399999999999999,48.12],[8.439999999999998,48.12],[8.439999999999998,48.08],[8.399999999999999,48.08]]]},"collection":"terramind_embeddings","properties":{"gsd":10,"title":"Terramind
+        Embedding","datetime":"2025-01-01T00:00:00","licensing":" CC-BY 4.0","description":"Terramind
+        embedding from Sentinel-2-L2A imagery."},"stac_version":"1.1.0","stac_extensions":[]}],"numberReturned":10}'
+    headers:
+      content-encoding:
+      - br
+      content-length:
+      - '908'
+      content-type:
+      - application/geo+json
+      date:
+      - Tue, 21 Jul 2026 09:53:22 GMT
+      server:
+      - uvicorn
+      vary:
+      - Accept-Encoding
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '{"bbox": [8.38, 48.02, 8.46, 48.1], "datetime": "2025-01-01T00:00:00.000000Z/2025-01-02T00:00:00.000000Z",
+      "collections": ["terramind_embeddings"], "token": "next:terramind_embeddings:S2A_MSIL2A_20170102T175732_N0500_R141_T13TEF_20230926T044006__0-256_10724-10980_embedding_7"}'
+    headers:
+      Accept:
+      - '*/*'
+      Accept-Encoding:
+      - gzip, deflate, br
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '277'
+      Content-Type:
+      - application/json
+      User-Agent:
+      - python-requests/2.32.5
+    method: POST
+    uri: http://localhost:8082/search
+  response:
+    body:
+      string: '{"type":"FeatureCollection","links":[{"rel":"root","type":"application/json","href":"http://localhost:8082/"},{"rel":"self","type":"application/geo+json","href":"http://localhost:8082/search"},{"rel":"previous","type":"application/geo+json","method":"POST","href":"http://localhost:8082/search","body":{"bbox":[8.38,48.02,8.46,48.1],"datetime":"2025-01-01T00:00:00.000000Z/2025-01-02T00:00:00.000000Z","collections":["terramind_embeddings"],"token":"prev:terramind_embeddings:S2A_MSIL2A_20170102T175732_N0500_R141_T13TEF_20230926T044006__0-256_10724-10980_embedding_6"}}],"features":[{"id":"S2A_MSIL2A_20170102T175732_N0500_R141_T13TEF_20230926T044006__0-256_10724-10980_embedding_6","bbox":[-180,-90,180,90],"type":"Feature","links":[{"rel":"collection","type":"application/json","href":"http://localhost:8082/collections/terramind_embeddings"},{"rel":"parent","type":"application/json","href":"http://localhost:8082/collections/terramind_embeddings"},{"rel":"root","type":"application/json","href":"http://localhost:8082/"},{"rel":"self","type":"application/geo+json","href":"http://localhost:8082/collections/terramind_embeddings/items/S2A_MSIL2A_20170102T175732_N0500_R141_T13TEF_20230926T044006__0-256_10724-10980_embedding_6"},{"rel":"emb:source-data","href":"https://stac.dataspace.copernicus.eu/v1/collections/sentinel-2-l2a/items/S2A_MSIL2A_20170102T175732_N0500_R141_T13TEF_20230926T044006","type":"application/json","title":"Sentinel-2
+        image from which this embedding was computed."}],"assets":{"embeddings":{"href":"tests/data/embedding_1x1.tif","type":"image/tiff","roles":["embedding"],"title":"AEF
+        embeddings"}},"geometry":{"type":"Polygon","coordinates":[[[8.399999999999999,48.04],[8.399999999999999,48.08],[8.439999999999998,48.08],[8.439999999999998,48.04],[8.399999999999999,48.04]]]},"collection":"terramind_embeddings","properties":{"gsd":10,"title":"Terramind
+        Embedding","datetime":"2025-01-01T00:00:00","licensing":" CC-BY 4.0","description":"Terramind
+        embedding from Sentinel-2-L2A imagery."},"stac_version":"1.1.0","stac_extensions":[]},{"id":"S2A_MSIL2A_20170102T175732_N0500_R141_T13TEF_20230926T044006__0-256_10724-10980_embedding_5","bbox":[-180,-90,180,90],"type":"Feature","links":[{"rel":"collection","type":"application/json","href":"http://localhost:8082/collections/terramind_embeddings"},{"rel":"parent","type":"application/json","href":"http://localhost:8082/collections/terramind_embeddings"},{"rel":"root","type":"application/json","href":"http://localhost:8082/"},{"rel":"self","type":"application/geo+json","href":"http://localhost:8082/collections/terramind_embeddings/items/S2A_MSIL2A_20170102T175732_N0500_R141_T13TEF_20230926T044006__0-256_10724-10980_embedding_5"},{"rel":"emb:source-data","href":"https://stac.dataspace.copernicus.eu/v1/collections/sentinel-2-l2a/items/S2A_MSIL2A_20170102T175732_N0500_R141_T13TEF_20230926T044006","type":"application/json","title":"Sentinel-2
+        image from which this embedding was computed."}],"assets":{"embeddings":{"href":"tests/data/embedding_1x1.tif","type":"image/tiff","roles":["embedding"],"title":"AEF
+        embeddings"}},"geometry":{"type":"Polygon","coordinates":[[[8.399999999999999,48],[8.399999999999999,48.04],[8.439999999999998,48.04],[8.439999999999998,48],[8.399999999999999,48]]]},"collection":"terramind_embeddings","properties":{"gsd":10,"title":"Terramind
+        Embedding","datetime":"2025-01-01T00:00:00","licensing":" CC-BY 4.0","description":"Terramind
+        embedding from Sentinel-2-L2A imagery."},"stac_version":"1.1.0","stac_extensions":[]},{"id":"S2A_MSIL2A_20170102T175732_N0500_R141_T13TEF_20230926T044006__0-256_10724-10980_embedding_2","bbox":[-180,-90,180,90],"type":"Feature","links":[{"rel":"collection","type":"application/json","href":"http://localhost:8082/collections/terramind_embeddings"},{"rel":"parent","type":"application/json","href":"http://localhost:8082/collections/terramind_embeddings"},{"rel":"root","type":"application/json","href":"http://localhost:8082/"},{"rel":"self","type":"application/geo+json","href":"http://localhost:8082/collections/terramind_embeddings/items/S2A_MSIL2A_20170102T175732_N0500_R141_T13TEF_20230926T044006__0-256_10724-10980_embedding_2"},{"rel":"emb:source-data","href":"https://stac.dataspace.copernicus.eu/v1/collections/sentinel-2-l2a/items/S2A_MSIL2A_20170102T175732_N0500_R141_T13TEF_20230926T044006","type":"application/json","title":"Sentinel-2
+        image from which this embedding was computed."}],"assets":{"embeddings":{"href":"tests/data/embedding_1x1.tif","type":"image/tiff","roles":["embedding"],"title":"AEF
+        embeddings"}},"geometry":{"type":"Polygon","coordinates":[[[8.36,48.08],[8.36,48.12],[8.399999999999999,48.12],[8.399999999999999,48.08],[8.36,48.08]]]},"collection":"terramind_embeddings","properties":{"gsd":10,"title":"Terramind
+        Embedding","datetime":"2025-01-01T00:00:00","licensing":" CC-BY 4.0","description":"Terramind
+        embedding from Sentinel-2-L2A imagery."},"stac_version":"1.1.0","stac_extensions":[]},{"id":"S2A_MSIL2A_20170102T175732_N0500_R141_T13TEF_20230926T044006__0-256_10724-10980_embedding_12","bbox":[-180,-90,180,90],"type":"Feature","links":[{"rel":"collection","type":"application/json","href":"http://localhost:8082/collections/terramind_embeddings"},{"rel":"parent","type":"application/json","href":"http://localhost:8082/collections/terramind_embeddings"},{"rel":"root","type":"application/json","href":"http://localhost:8082/"},{"rel":"self","type":"application/geo+json","href":"http://localhost:8082/collections/terramind_embeddings/items/S2A_MSIL2A_20170102T175732_N0500_R141_T13TEF_20230926T044006__0-256_10724-10980_embedding_12"},{"rel":"emb:source-data","href":"https://stac.dataspace.copernicus.eu/v1/collections/sentinel-2-l2a/items/S2A_MSIL2A_20170102T175732_N0500_R141_T13TEF_20230926T044006","type":"application/json","title":"Sentinel-2
+        image from which this embedding was computed."}],"assets":{"embeddings":{"href":"tests/data/embedding_1x1.tif","type":"image/tiff","roles":["embedding"],"title":"AEF
+        embeddings"}},"geometry":{"type":"Polygon","coordinates":[[[8.44,48.08],[8.44,48.12],[8.479999999999999,48.12],[8.479999999999999,48.08],[8.44,48.08]]]},"collection":"terramind_embeddings","properties":{"gsd":10,"title":"Terramind
+        Embedding","datetime":"2025-01-01T00:00:00","licensing":" CC-BY 4.0","description":"Terramind
+        embedding from Sentinel-2-L2A imagery."},"stac_version":"1.1.0","stac_extensions":[]},{"id":"S2A_MSIL2A_20170102T175732_N0500_R141_T13TEF_20230926T044006__0-256_10724-10980_embedding_11","bbox":[-180,-90,180,90],"type":"Feature","links":[{"rel":"collection","type":"application/json","href":"http://localhost:8082/collections/terramind_embeddings"},{"rel":"parent","type":"application/json","href":"http://localhost:8082/collections/terramind_embeddings"},{"rel":"root","type":"application/json","href":"http://localhost:8082/"},{"rel":"self","type":"application/geo+json","href":"http://localhost:8082/collections/terramind_embeddings/items/S2A_MSIL2A_20170102T175732_N0500_R141_T13TEF_20230926T044006__0-256_10724-10980_embedding_11"},{"rel":"emb:source-data","href":"https://stac.dataspace.copernicus.eu/v1/collections/sentinel-2-l2a/items/S2A_MSIL2A_20170102T175732_N0500_R141_T13TEF_20230926T044006","type":"application/json","title":"Sentinel-2
+        image from which this embedding was computed."}],"assets":{"embeddings":{"href":"tests/data/embedding_1x1.tif","type":"image/tiff","roles":["embedding"],"title":"AEF
+        embeddings"}},"geometry":{"type":"Polygon","coordinates":[[[8.44,48.04],[8.44,48.08],[8.479999999999999,48.08],[8.479999999999999,48.04],[8.44,48.04]]]},"collection":"terramind_embeddings","properties":{"gsd":10,"title":"Terramind
+        Embedding","datetime":"2025-01-01T00:00:00","licensing":" CC-BY 4.0","description":"Terramind
+        embedding from Sentinel-2-L2A imagery."},"stac_version":"1.1.0","stac_extensions":[]},{"id":"S2A_MSIL2A_20170102T175732_N0500_R141_T13TEF_20230926T044006__0-256_10724-10980_embedding_10","bbox":[-180,-90,180,90],"type":"Feature","links":[{"rel":"collection","type":"application/json","href":"http://localhost:8082/collections/terramind_embeddings"},{"rel":"parent","type":"application/json","href":"http://localhost:8082/collections/terramind_embeddings"},{"rel":"root","type":"application/json","href":"http://localhost:8082/"},{"rel":"self","type":"application/geo+json","href":"http://localhost:8082/collections/terramind_embeddings/items/S2A_MSIL2A_20170102T175732_N0500_R141_T13TEF_20230926T044006__0-256_10724-10980_embedding_10"},{"rel":"emb:source-data","href":"https://stac.dataspace.copernicus.eu/v1/collections/sentinel-2-l2a/items/S2A_MSIL2A_20170102T175732_N0500_R141_T13TEF_20230926T044006","type":"application/json","title":"Sentinel-2
+        image from which this embedding was computed."}],"assets":{"embeddings":{"href":"tests/data/embedding_1x1.tif","type":"image/tiff","roles":["embedding"],"title":"AEF
+        embeddings"}},"geometry":{"type":"Polygon","coordinates":[[[8.44,48],[8.44,48.04],[8.479999999999999,48.04],[8.479999999999999,48],[8.44,48]]]},"collection":"terramind_embeddings","properties":{"gsd":10,"title":"Terramind
+        Embedding","datetime":"2025-01-01T00:00:00","licensing":" CC-BY 4.0","description":"Terramind
+        embedding from Sentinel-2-L2A imagery."},"stac_version":"1.1.0","stac_extensions":[]},{"id":"S2A_MSIL2A_20170102T175732_N0500_R141_T13TEF_20230926T044006__0-256_10724-10980_embedding_1","bbox":[-180,-90,180,90],"type":"Feature","links":[{"rel":"collection","type":"application/json","href":"http://localhost:8082/collections/terramind_embeddings"},{"rel":"parent","type":"application/json","href":"http://localhost:8082/collections/terramind_embeddings"},{"rel":"root","type":"application/json","href":"http://localhost:8082/"},{"rel":"self","type":"application/geo+json","href":"http://localhost:8082/collections/terramind_embeddings/items/S2A_MSIL2A_20170102T175732_N0500_R141_T13TEF_20230926T044006__0-256_10724-10980_embedding_1"},{"rel":"emb:source-data","href":"https://stac.dataspace.copernicus.eu/v1/collections/sentinel-2-l2a/items/S2A_MSIL2A_20170102T175732_N0500_R141_T13TEF_20230926T044006","type":"application/json","title":"Sentinel-2
+        image from which this embedding was computed."}],"assets":{"embeddings":{"href":"tests/data/embedding_1x1.tif","type":"image/tiff","roles":["embedding"],"title":"AEF
+        embeddings"}},"geometry":{"type":"Polygon","coordinates":[[[8.36,48.04],[8.36,48.08],[8.399999999999999,48.08],[8.399999999999999,48.04],[8.36,48.04]]]},"collection":"terramind_embeddings","properties":{"gsd":10,"title":"Terramind
+        Embedding","datetime":"2025-01-01T00:00:00","licensing":" CC-BY 4.0","description":"Terramind
+        embedding from Sentinel-2-L2A imagery."},"stac_version":"1.1.0","stac_extensions":[]},{"id":"S2A_MSIL2A_20170102T175732_N0500_R141_T13TEF_20230926T044006__0-256_10724-10980_embedding_0","bbox":[-180,-90,180,90],"type":"Feature","links":[{"rel":"collection","type":"application/json","href":"http://localhost:8082/collections/terramind_embeddings"},{"rel":"parent","type":"application/json","href":"http://localhost:8082/collections/terramind_embeddings"},{"rel":"root","type":"application/json","href":"http://localhost:8082/"},{"rel":"self","type":"application/geo+json","href":"http://localhost:8082/collections/terramind_embeddings/items/S2A_MSIL2A_20170102T175732_N0500_R141_T13TEF_20230926T044006__0-256_10724-10980_embedding_0"},{"rel":"emb:source-data","href":"https://stac.dataspace.copernicus.eu/v1/collections/sentinel-2-l2a/items/S2A_MSIL2A_20170102T175732_N0500_R141_T13TEF_20230926T044006","type":"application/json","title":"Sentinel-2
+        image from which this embedding was computed."}],"assets":{"embeddings":{"href":"tests/data/embedding_1x1.tif","type":"image/tiff","roles":["embedding"],"title":"AEF
+        embeddings"}},"geometry":{"type":"Polygon","coordinates":[[[8.36,48],[8.36,48.04],[8.399999999999999,48.04],[8.399999999999999,48],[8.36,48]]]},"collection":"terramind_embeddings","properties":{"gsd":10,"title":"Terramind
+        Embedding","datetime":"2025-01-01T00:00:00","licensing":" CC-BY 4.0","description":"Terramind
+        embedding from Sentinel-2-L2A imagery."},"stac_version":"1.1.0","stac_extensions":[]}],"numberReturned":8}'
+    headers:
+      content-encoding:
+      - br
+      content-length:
+      - '862'
+      content-type:
+      - application/geo+json
+      date:
+      - Tue, 21 Jul 2026 09:53:22 GMT
+      server:
+      - uvicorn
+      vary:
+      - Accept-Encoding
+    status:
+      code: 200
+      message: OK
+version: 1

@@ -1,3 +1,5 @@
+from pathlib import Path
+
 import boto3
 import botocore.exceptions
 import requests
@@ -84,7 +86,10 @@ def download_s3(url: str, target_path: str):
         raise Exception(f"Error connecting to s3 storage to download model")
 
 
-def download(url: str, target_path: str):
+def download(url: str, target_path: str | Path):
+    if isinstance(target_path, Path):
+        target_path = str(target_path)
+
     protocol = url.split("://")[0]
 
     # download the model

@@ -22,7 +22,14 @@ logger = logging.getLogger(__name__)
 process_registry = ProcessRegistry(wrap_funcs=[process])
 
 
-def register_processes(process_module: str, spec_module: str):
+def register_processes(
+    process_module: str,
+    spec_module: str,
+    unsupported_processes: list[str] | None = None,
+):
+    if unsupported_processes is None:
+        unsupported_processes = []
+
     # Import processes from openeo_processes_dask and register them into
     processes_from_module = [
         func
@@ -36,19 +43,36 @@ def register_processes(process_module: str, spec_module: str):
     specs = {
         func.__name__: getattr(specs_module, func.__name__)
         for func in processes_from_module
+        if func.__name__ not in unsupported_processes
     }
 
     # print(specs.keys())
 
     for func in processes_from_module:
+        if func.__name__ in unsupported_processes:
+            continue
+
         process_registry[func.__name__] = Process(
             spec=specs[func.__name__], implementation=func
         )
 
 
 # register the standard processes from openeo-processes-dask
+unsupported_processes_openeoprocessesdask = [
+    "apply_neighborhood_intertwin",
+    "array_create_labeled",
+    "array_find_label",
+    "cummax",
+    "cummin",
+    "cumproduct",
+    "cumsum",
+    "resample_cube_temporal",
+    "run_udf",
+]
 register_processes(
-    "openeo_processes_dask.process_implementations", "openeo_processes_dask.specs"
+    "openeo_processes_dask.process_implementations",
+    "openeo_processes_dask.specs",
+    unsupported_processes_openeoprocessesdask,
 )
 
 # register the new ML processes from this repo

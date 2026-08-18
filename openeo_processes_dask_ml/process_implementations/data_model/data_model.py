@@ -15,6 +15,7 @@ import pystac
 import xarray as xr
 import xarray.core.coordinates
 from dask import array as da
+from dask.graph_manipulation import bind
 from openeo_processes_dask.process_implementations.exceptions import (
     DimensionMismatch,
     DimensionMissing,
@@ -881,7 +882,9 @@ class MLModel(ABC):
             coord = input_dc_coords[inp_dim_name][inp_idx].data
         dc_slice.coords[inp_dim_name] = [coord]
 
-    def save_blocks(self, block: np.ndarray, tmp_dir_input: str) -> np.ndarray:
+    def save_blocks(
+        self, block: np.ndarray, tmp_dir_input: str, block_info: dict = None
+    ) -> np.ndarray:
         """
         Save block to disk in temp folder
         :param block: block in dask array
@@ -898,21 +901,25 @@ class MLModel(ABC):
 
         if np.isnan(block).all():
             # empty block, do not write
-            tile_id = "00000000-0000-0000-0000-000000000000"
+            fill_value = False
         else:
-            tile_id = str(uuid4())
+            loc = block_info[None]["chunk-location"]  # stable per block
+            tile_id = "-".join(map(str, loc))
+            path = f"{tmp_dir_input}/{tile_id}.npy"
 
             # remove dimensions not used in model input
             squeezed_block = block.squeeze(axis=axes_to_squeeze)
 
             # save squeezed block as .npy
-            np.save(f"{tmp_dir_input}/{tile_id}.npy", squeezed_block)
+            np.save(path, squeezed_block)
+
+            fill_value = True
 
         # lambda function to recursively wrap value in nested ists
         # e.g. wrap_value("foo", 3) => [[["foo"]]]
         wrap_value = lambda s, n: s if n <= 0 else wrap_value([s], n - 1)
-        wrapped_tile_id = wrap_value(tile_id, len(axes_to_squeeze) + 1)
-        return np.array(wrapped_tile_id, dtype="S36")
+        wrapped_fill_value = wrap_value(fill_value, len(axes_to_squeeze) + 1)
+        return np.array(wrapped_fill_value, dtype=np.dtype("bool"))
 
     @dask.delayed
     def predict_in_dask_worker(
@@ -989,12 +996,15 @@ class MLModel(ABC):
         block: np.ndarray,
         tmp_dir_output: str,
         n_dims_to_embed_model_output_in: int,
-        dependence_object,
+        block_info: dict = None,
     ):
         # len of block dims should be 1 for each dim due to how we rechunked earlier
-        result_id = block.item().decode(encoding="ascii")
 
-        if result_id == "00000000-0000-0000-0000-000000000000":
+        loc = block_info[0]["chunk-location"]
+        result_id = "-".join(map(str, loc))
+        path = f"{tmp_dir_output}/{result_id}.npy"
+
+        if not os.path.exists(path):
             try:
                 # get dimension index of "batch" dimension
                 batch_index = self.input.input.dim_order.index("batch")
@@ -1005,7 +1015,7 @@ class MLModel(ABC):
             out_shp[batch_index] = self.get_batch_size()
             result_arr = np.full(out_shp, float("nan"))
         else:
-            result_arr = np.load(f"{tmp_dir_output}/{result_id}.npy")
+            result_arr = np.load(path)
 
         # we have to "embed" the model output into extra dimensions that were not used
         # in model prediction, and that are not part of the model output
@@ -1092,7 +1102,7 @@ class MLModel(ABC):
         # This simplifies coordination between dask, ML framework and GPU
         saved_data = data.map_blocks(
             self.save_blocks,
-            dtype=np.dtype("S36"),
+            dtype=np.dtype("bool"),
             chunks=(1,) * (len(dims_not_in_model) + 1),
             drop_axis=drop_axis,
             tmp_dir_input=tmp_dir_input,
@@ -1134,16 +1144,21 @@ class MLModel(ABC):
                 1, len(self.get_model_out_shape(input_dc)) + n_dims_not_in_output + 1
             )
 
+        placeholder = da.zeros(
+            saved_data.shape, chunks=saved_data.chunks, dtype="uint8"
+        )
+
         # Reconstruct the datacube from the saved predictions
-        model_out = saved_data.map_blocks(
+        model_out = placeholder.map_blocks(
             self.load_prediction,
             dtype=out_dtype_np,
             chunks=chunk_out_shape,
             new_axis=new_axis,
             tmp_dir_output=tmp_dir_output,
-            dependence_object=executed,
             n_dims_to_embed_model_output_in=n_dims_not_in_output,
         )
+
+        model_out = bind(model_out, executed)
 
         ##################################
         #  Now back to xarray DataArray  #

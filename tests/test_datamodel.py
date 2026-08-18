@@ -1,3 +1,4 @@
+import os
 import subprocess
 import unittest.mock
 import uuid
@@ -488,19 +489,19 @@ def test_save_block_data(mlm_item, monkeypatch):
     mock_np_save = unittest.mock.Mock(return_value=None)
     monkeypatch.setattr(np, "save", mock_np_save)
 
-    out = d.save_blocks(block, tmp_path)
+    block_info = {None: {"chunk-location": (4, 2)}}
+    out = d.save_blocks(block, tmp_path, block_info=block_info)
 
     assert out.shape == (1, 1)
 
-    uuid_str = out.item().decode()
-    uuid.UUID(uuid_str)
-    block_filepath = f"{tmp_path}/{uuid_str}.npy"
+    block_filepath = f"{tmp_path}/4-2.npy"
 
     mock_np_save.assert_called_once()
     call_path, call_array = mock_np_save.call_args.args
 
     assert call_path == block_filepath
     assert np.all(call_array == np.ones((2, 2, 4, 4)))
+    assert out.all()  # all entries are true
 
 
 def test_save_block_nans(mlm_item, monkeypatch):
@@ -511,13 +512,14 @@ def test_save_block_nans(mlm_item, monkeypatch):
     monkeypatch.setattr(np, "save", mock_save_np)
 
     d = DummyMLModel(mlm_item)
-    out = d.save_blocks(block, "foo")
+
+    block_info = {None: {"chunk-location": (4, 2)}}
+    out = d.save_blocks(block, "foo", block_info=block_info)
 
     mock_save_np.assert_not_called()
     assert out.shape == (1, 1)
 
-    uuid_str = out.item().decode()
-    assert uuid_str == "00000000-0000-0000-0000-000000000000"
+    assert ~out.any()
 
 
 def test_load_prediction(mlm_item, monkeypatch):
@@ -528,11 +530,14 @@ def test_load_prediction(mlm_item, monkeypatch):
     mock_np_load = unittest.mock.Mock(return_value=np.array([1, 2]))
     monkeypatch.setattr(np, "load", mock_np_load)
 
-    block = np.array([[b"asdf"]])
+    mock_os_path_exists = unittest.mock.Mock(return_value=True)
+    monkeypatch.setattr(os.path, "exists", mock_os_path_exists)
 
-    loaded_block = d.load_prediction(block, tmp_dir, 2, None)
+    block = np.array([[0]])
+    block_info = {0: {"chunk-location": (4, 2)}}
+    loaded_block = d.load_prediction(block, tmp_dir, 2, block_info)
 
-    mock_np_load.assert_called_once_with(f"{tmp_dir}/asdf.npy")
+    mock_np_load.assert_called_once_with(f"{tmp_dir}/4-2.npy")
 
     assert loaded_block.shape == (2, 1, 1, 1)
     assert np.all(loaded_block == np.array([[[[1]]], [[[2]]]]))
@@ -545,8 +550,12 @@ def test_load_prediction_nans(mlm_item, monkeypatch):
     mock_np_load = unittest.mock.Mock(return_value=np.ones((1, 2)))
     monkeypatch.setattr(np, "load", mock_np_load)
 
-    block = np.array([[b"00000000-0000-0000-0000-000000000000"]])
-    loaded_block = d.load_prediction(block, "foo", 2, None)
+    mock_os_path_exists = unittest.mock.Mock(return_value=False)
+    monkeypatch.setattr(os.path, "exists", mock_os_path_exists)
+
+    block = np.array([[0]])
+    block_info = {0: {"chunk-location": (4, 2)}}
+    loaded_block = d.load_prediction(block, "foo", 2, block_info)
 
     mock_np_load.assert_not_called()
 
