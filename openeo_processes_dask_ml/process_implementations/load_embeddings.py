@@ -311,6 +311,13 @@ def _load_tiff(path: str) -> xr.DataArray:
     # squeeze x and y if its only 1 (i.e. tiff only has one pixel
     if len(dc.coords["x"]) == 1 and len(dc.coords["y"]) == 1:
         dc = dc.squeeze(dim=["x", "y"], drop=True)
+    else:
+        # we assume that we have (re-alligned) ViT patch embeddings
+        # as vit patch embeddings do not contain content about their (spatial) location
+        # we drop the x and y coords
+        dc = dc.drop_vars(["x", "y"])
+        dc = dc.rename({"x": "patch_x", "y": "patch_y"})
+    # todo: what if tiff contains embeddins that are NOT ViT patch embeddings?
 
     dc.attrs.clear()  # remove rioxarray stats
     return dc
