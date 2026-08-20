@@ -141,13 +141,13 @@ def get_datacube_from_stackstac(
 
 def load_stac_without_cache(
     url: str,
-    spatial_extent: Optional[BoundingBox] = None,
-    temporal_extent: Optional[TemporalInterval] = None,
-    bands: Optional[list[str]] = None,
-    properties: Optional[dict] = None,
-    resolution: Optional[float] = None,
-    projection: Optional[Union[int, str]] = None,
-    resampling: Optional[str] = None,
+    spatial_extent: BoundingBox | None = None,
+    temporal_extent: TemporalInterval | None = None,
+    bands: list[str] | None = None,
+    properties: dict | None = None,
+    resolution: float | None = None,
+    projection: int | str | None = None,
+    resampling: str | None = None,
 ) -> xr.DataArray:
     if "https://stac.dataspace.copernicus.eu/v1" in url:
         # set CDSE AWS S3 envs
@@ -237,13 +237,13 @@ def load_stac_without_cache(
 
 def load_stac_with_cache(
     url: str,
-    spatial_extent: Optional[BoundingBox] = None,
-    temporal_extent: Optional[TemporalInterval] = None,
-    bands: Optional[list[str]] = None,
-    properties: Optional[dict] = None,
-    resolution: Optional[float] = None,
-    projection: Optional[Union[int, str]] = None,
-    resampling: Optional[str] = None,
+    spatial_extent: BoundingBox | None = None,
+    temporal_extent: TemporalInterval | None = None,
+    bands: list[str] | None = None,
+    properties: dict | None = None,
+    resolution: float | None = None,
+    projection: int | str | None = None,
+    resampling: str | None = None,
 ) -> xr.DataArray:
     hash_val = _secure_hash_objects(
         url,

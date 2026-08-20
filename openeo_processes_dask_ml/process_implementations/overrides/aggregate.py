@@ -9,8 +9,7 @@ implementation for two reasons:
 
 import gc
 import logging
-from collections.abc import Hashable, Sequence
-from typing import Callable
+from collections.abc import Callable, Hashable, Sequence
 
 import dask_geopandas as d_gpd
 import geopandas as gpd
