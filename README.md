@@ -21,19 +21,40 @@ This package is not published on PyPI yet. It can only be used from source
 
 ## Development environment
 
-1. Clone the repository
-2. Install it using [poetry](https://python-poetry.org/docs/):
-   `poetry install --all-extras`
-3. Run the test suite: `poetry run pytest`
+Due to gdal dependency, installation can be quite tricky (on Linux at least...)
+and we have to use a combination of conda and uv for installation.
 
-### Extensibility
+Installation on Linux:
+
+1. Clone the repository
+2. Create a conda environment:
+    `conda create -n gdal python=3.14 gdal=3.13.1`
+3. Activate conda environment:
+   `conda acitvate gdal`
+4. Install it using [uv](hhttps://docs.astral.sh/uv/) from the conda env:
+   `uv sync --python "$CONDA_PREFIX/bin/python" --extra scikit-learn --extra torch-cuda`
+5. Deactivate conda env:
+   `conda deactivate`
+6. Run the test suite (Errors may occur if optional dependency groups were not installed):
+    `uv run pytest`
+
+(As I do not have a Windows or MacOS system, I can not provide and test installation
+instructions for these systems. Please test and contribute them with a PR.)
+
+Optional dependencies: Runtime packages for a specific ML framework are provided in
+optional dependencies:
+- `torch-cuda` and `torch-cpu`: For pytorch ML models with and without GPU support.
+  Can not be installed at the same time.
+- `scikit-learn`: For scikit-learn based ML models
+
+## Extensibility
 
 This package is made to be easily extensible (e.g. adding support for new
 ML frameworks) by inheriting from
 `openeo_processes_dask_ml.process_implementations.data_model.data_model.MLModel` and implementing
 the abstract methods.
 
-### Pre-commit hooks
+## Pre-commit hooks
 
 This repo makes use of [pre-commit](https://pre-commit.com/) hooks to enforce linting &
 a few sanity checks. In a fresh development setup, install the hooks using
@@ -45,6 +66,8 @@ changes before making the commit.
 - `minibackend` has a minimal backend implementation for executing process graphs
 - `opd-ml-dev-utils` has some scripts that are helpful during development
 - `openeo-processes-dask-ml` the actuall ML process specs and implementations
+- `ml_datacube_bridge` contains glue code to convert between datacube arrays and
+    ML model input and output
 - `tests` for pytest
 
 ## Acknowledgement

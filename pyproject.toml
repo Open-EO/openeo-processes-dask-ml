@@ -1,14 +1,14 @@
 [project]
 name = "openeo-processes-dask-ml"
-version = "0.0.3"
+version = "0.0.4"
 description = "Implementation for openEO ML processes, built to extend openeo-processes-dask"
+authors = [{ name = "Jonas Hurst", email = "jhurst@uni-muenster.de" }]
+requires-python = ">=3.12,<3.15"
 readme = "README.md"
-requires-python = ">=3.12,<3.13"
-
-authors = [
-    { name = "Jonas Hurst", email = "jhurst@uni-muenster.de" }
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.12",
 ]
-
 dependencies = [
     "boto3>=1.38.14",
     "stackstac>=0.5.1",
@@ -17,17 +17,13 @@ dependencies = [
     "pystac @ git+https://github.com/jonas-hurst/pystac@v1.15.1OWN",
     "gdal (==3.13.1)",
     "zarr (>3.0)",
-    "s3fs (>=2026.7.0,<2027.0.0)"
+    "s3fs (>=2026.7.0,<2027.0.0)",
 ]
 
 [project.optional-dependencies]
-torch = [
-    "torch==2.7.0"
-]
-
-scikit-learn = [
-    "scikit-learn>=1.8.0"
-]
+torch-cuda = ["torch==2.9.0"]
+torch-cpu = ["torch==2.9.0"]
+scikit-learn = ["scikit-learn>=1.8.0"]
 
 [dependency-groups]
 dev = [
@@ -42,11 +38,35 @@ dev = [
     "dask-labextension>=7.0.0,<8.0.0",
     "dask-jobqueue>=0.9.0,<0.10.0",
     "pytest-cov>=7.0.0,<8.0.0"
+,
 ]
 
 [build-system]
-requires = ["poetry-core"]
-build-backend = "poetry.core.masonry.api"
+requires = ["uv_build>=0.10.0,<0.11.0"]
+build-backend = "uv_build"
+
+[tool.uv.build-backend]
+module-name = "openeo_processes_dask_ml"
+module-root = ""
 
 [tool.pytest.ini_options]
 addopts = "--block-network --record-mode=new_episodes --cov=openeo_processes_dask_ml --cov=minibackend --cov-report=html"
+
+[tool.uv]
+# torch-cuda (PyPI) and torch-cpu can't coexist in one resolution
+conflicts = [
+    [
+        { extra = "torch-cuda" },
+        { extra = "torch-cpu" },
+    ],
+]
+
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true                     # only used for packages that reference it
+
+[tool.uv.sources]
+torch = [
+    { index = "pytorch-cpu", extra = "torch-cpu" },
+]

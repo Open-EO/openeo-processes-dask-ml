@@ -55,8 +55,8 @@ def load_collection(
     id: str,
     spatial_extent: BoundingBox,
     temporal_extent: TemporalInterval,
-    bands: Optional[list[str]] = None,
-    properties: Optional[dict] = None,
+    bands: list[str] | None = None,
+    properties: dict | None = None,
     **kwargs,
 ):
     data_backends = {
