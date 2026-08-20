@@ -1,6 +1,6 @@
 [project]
 name = "openeo-processes-dask-ml"
-version = "0.0.3"
+version = "0.0.4"
 description = "Implementation for openEO ML processes, built to extend openeo-processes-dask"
 authors = [{ name = "Jonas Hurst", email = "jhurst@uni-muenster.de" }]
 requires-python = ">=3.12,<3.15"
