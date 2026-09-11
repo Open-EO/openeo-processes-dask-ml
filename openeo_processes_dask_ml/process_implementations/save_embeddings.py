@@ -1,6 +1,7 @@
 import json
 from datetime import datetime
 from pathlib import Path
+from typing import Any
 from uuid import uuid4
 
 import dask
@@ -148,7 +149,7 @@ def _update_stac_metadata_raster_cube(
 # ----------------------------------------------------
 
 
-def _get_crs(da: xr.DataArray, geom_dim: str):
+def _get_crs(da: xr.DataArray, geom_dim: str) -> Any:
     try:
         crs = da.xvec.crs
         return crs.get(geom_dim) if isinstance(crs, dict) else crs
@@ -156,7 +157,9 @@ def _get_crs(da: xr.DataArray, geom_dim: str):
         return da[geom_dim].attrs.get("crs")
 
 
-def _column_labels(da, time_dim, time_fmt) -> list[str]:
+def _column_labels(
+    da: xr.DataArray, time_dim: str | None, time_fmt: str | None
+) -> list[str]:
     if time_dim not in da.dims:
         return ["embedding"]
     if time_dim in da.dims and len(da.coords[time_dim].values) == 1:
@@ -172,7 +175,7 @@ def _column_labels(da, time_dim, time_fmt) -> list[str]:
     return labels
 
 
-def _geometry_types(geoms) -> list[str]:
+def _geometry_types(geoms: np.ndarray) -> list[str]:
     ids = shapely.get_type_id(geoms)
     zs = shapely.has_z(geoms).astype(np.int8)
     combos = np.unique(np.stack([ids, zs], axis=1), axis=0)
@@ -184,7 +187,7 @@ def _geometry_types(geoms) -> list[str]:
     return sorted(out)
 
 
-def _geo_metadata(geoms, crs, column="geometry") -> dict:
+def _geo_metadata(geoms: np.ndarray, crs: Any, column: str = "geometry") -> dict:
     """GeoParquet 1.1 file metadata."""
     xmin, ymin, xmax, ymax = shapely.total_bounds(geoms)
     col = {
@@ -196,7 +199,9 @@ def _geo_metadata(geoms, crs, column="geometry") -> dict:
     return {"version": "1.1.0", "primary_column": column, "columns": {column: col}}
 
 
-def _build_schema(columns, value_type, n_emb, geo_meta) -> pa.Schema:
+def _build_schema(
+    columns: list[str], value_type: pa.DataType, n_emb: int, geo_meta: dict
+) -> pa.Schema:
     fields = [pa.field("geometry", pa.binary())]
     fields += [pa.field(c, pa.list_(value_type, n_emb)) for c in columns]
     # NOTE: no b"pandas" key -> nothing to misparse on read
@@ -210,7 +215,9 @@ def _fsl(block: np.ndarray) -> pa.FixedSizeListArray:
     return pa.FixedSizeListArray.from_arrays(pa.array(block.reshape(-1)), k)
 
 
-def _blocks_to_table(blocks, geoms, schema) -> pa.Table:
+def _blocks_to_table(
+    blocks: list[np.ndarray], geoms: np.ndarray, schema: pa.Schema
+) -> pa.Table:
     """Runs inside a dask task: geometry chunk + one block per time slice."""
     wkb = shapely.to_wkb(np.asarray(geoms, dtype=object), flavor="iso")
     arrays = [pa.array(wkb, type=pa.binary())] + [_fsl(b) for b in blocks]
@@ -223,12 +230,12 @@ def write_vector_cube_parquet(
     geom_dim: str = "geometry",
     emb_dim: str = "embedding",
     time_dim: str | None = "time",
-    time_fmt=None,
+    time_fmt: str | None = None,
     compression: str = "zstd",
-    compression_level=None,
-    row_group_size=None,
-    partitioned=False,  # True -> one file per geometry chunk (parallel)
-):
+    compression_level: int | None = None,
+    row_group_size: int | None = None,
+    partitioned: bool = False,  # True -> one file per geometry chunk (parallel)
+) -> Path | list:
     for dim in (geom_dim, emb_dim):
         if dim not in da.dims:
             raise ValueError(f"Missing required dimension {dim!r}; dims={da.dims}")
@@ -271,7 +278,9 @@ def write_vector_cube_parquet(
         out.mkdir(parents=True, exist_ok=True)
 
         @dask.delayed
-        def _write_part(blocks, part_geoms, dest):
+        def _write_part(
+            blocks: list[np.ndarray], part_geoms: np.ndarray, dest: str
+        ) -> str:
             pq.write_table(
                 _blocks_to_table(blocks, part_geoms, schema),
                 dest,
