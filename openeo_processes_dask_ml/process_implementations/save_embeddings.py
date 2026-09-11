@@ -314,9 +314,13 @@ def _save_as_parquet(datacube: xr.DataArray, path: Path) -> bool:
     except DimensionMissing:
         time_dim_name = None
 
-    write_vector_cube_parquet(
-        datacube, path, geometry_dim, emb_dim_name, time_dim_name, partitioned=False
-    )
+    try:
+        write_vector_cube_parquet(
+            datacube, path, geometry_dim, emb_dim_name, time_dim_name, partitioned=False
+        )
+        return True
+    except:
+        return False
 
 
 def _update_stac_metadata_vector_cube(stac_metadata: dict, datacube: xr.DataArray):
