@@ -3,20 +3,30 @@ from datetime import datetime
 from pathlib import Path
 from uuid import uuid4
 
-import dask.dataframe as ddf
-import dask_geopandas
-import geopandas as gpd
+import dask
 import numpy as np
 import pandas as pd
 import pyarrow as pa
+import pyarrow.parquet as pq
+import shapely
 import xarray as xr
-from dask.delayed import Delayed, delayed
 from openeo_processes_dask.process_implementations.exceptions import DimensionMissing
+from pyproj import CRS
 
 from openeo_processes_dask_ml.process_implementations.constants import (
     OPENEO_RESULTS_PATH,
 )
 from openeo_processes_dask_ml.process_implementations.utils import dim_utils, zip_utils
+
+_TYPE_NAMES = {
+    0: "Point",
+    1: "LineString",
+    2: "Polygon",
+    3: "MultiPoint",
+    4: "MultiLineString",
+    5: "MultiPolygon",
+    6: "GeometryCollection",
+}
 
 
 def _get_stac_item_template(_id: str) -> dict:
@@ -135,6 +145,9 @@ def _update_stac_metadata_raster_cube(
     _set_stac_embedding_metadata_raster(stac_metadata, datacube)
 
 
+# ----------------------------------------------------
+
+
 def _get_crs(da: xr.DataArray, geom_dim: str):
     try:
         crs = da.xvec.crs
@@ -145,6 +158,8 @@ def _get_crs(da: xr.DataArray, geom_dim: str):
 
 def _column_labels(da, time_dim, time_fmt) -> list[str]:
     if time_dim not in da.dims:
+        return ["embedding"]
+    if time_dim in da.dims and len(da.coords[time_dim].values) == 1:
         return ["embedding"]
     labels = []
     for t in da[time_dim].values:  # coords are always eager
@@ -157,57 +172,63 @@ def _column_labels(da, time_dim, time_fmt) -> list[str]:
     return labels
 
 
-def _to_column(block: np.ndarray, arrow_dtype: pd.ArrowDtype | None):
-    """(n_rows, n_emb) ndarray -> pandas column of per-row vectors."""
-    block = np.ascontiguousarray(block)
-    if arrow_dtype is None:  # object dtype fallback
-        return list(block)
-    fsl = pa.FixedSizeListArray.from_arrays(pa.array(block.reshape(-1)), block.shape[1])
-    return pd.arrays.ArrowExtensionArray(fsl)
+def _geometry_types(geoms) -> list[str]:
+    ids = shapely.get_type_id(geoms)
+    zs = shapely.has_z(geoms).astype(np.int8)
+    combos = np.unique(np.stack([ids, zs], axis=1), axis=0)
+    out = set()
+    for tid, z in combos:
+        name = _TYPE_NAMES.get(int(tid))
+        if name:
+            out.add(f"{name} Z" if z else name)
+    return sorted(out)
 
 
-def _partition_to_gdf(blocks, geoms, columns, crs, index, arrow_dtype):
-    """Runs inside one dask task: one geometry chunk, all timestamps."""
-    data = {c: _to_column(b, arrow_dtype) for c, b in zip(columns, blocks)}
-    gdf = gpd.GeoDataFrame(
-        data, geometry=gpd.GeoSeries(geoms, crs=crs, index=index), index=index
-    )
-    return gdf[["geometry", *columns]]
+def _geo_metadata(geoms, crs, column="geometry") -> dict:
+    """GeoParquet 1.1 file metadata."""
+    xmin, ymin, xmax, ymax = shapely.total_bounds(geoms)
+    col = {
+        "encoding": "WKB",
+        "geometry_types": _geometry_types(geoms),
+        "bbox": [float(xmin), float(ymin), float(xmax), float(ymax)],
+        "crs": CRS.from_user_input(crs).to_json_dict() if crs is not None else None,
+    }
+    return {"version": "1.1.0", "primary_column": column, "columns": {column: col}}
 
 
-def _meta(columns, crs, arrow_dtype) -> gpd.GeoDataFrame:
-    dtype = arrow_dtype if arrow_dtype is not None else object
-    meta = gpd.GeoDataFrame(
-        {c: pd.Series([], dtype=dtype) for c in columns},
-        geometry=gpd.GeoSeries([], crs=crs),
-    )
-    return meta[["geometry", *columns]]
+def _build_schema(columns, value_type, n_emb, geo_meta) -> pa.Schema:
+    fields = [pa.field("geometry", pa.binary())]
+    fields += [pa.field(c, pa.list_(value_type, n_emb)) for c in columns]
+    # NOTE: no b"pandas" key -> nothing to misparse on read
+    return pa.schema(fields, metadata={b"geo": json.dumps(geo_meta).encode()})
 
 
-# --------------------------------------------------------------------------- #
-# main entry point
-# --------------------------------------------------------------------------- #
-def _vector_cube_to_gdf(
+def _fsl(block: np.ndarray) -> pa.FixedSizeListArray:
+    """(n, k) ndarray -> FixedSizeListArray, no copy of the values."""
+    block = np.ascontiguousarray(np.asarray(block))
+    n, k = block.shape
+    return pa.FixedSizeListArray.from_arrays(pa.array(block.reshape(-1)), k)
+
+
+def _blocks_to_table(blocks, geoms, schema) -> pa.Table:
+    """Runs inside a dask task: geometry chunk + one block per time slice."""
+    wkb = shapely.to_wkb(np.asarray(geoms, dtype=object), flavor="iso")
+    arrays = [pa.array(wkb, type=pa.binary())] + [_fsl(b) for b in blocks]
+    return pa.Table.from_arrays(arrays, schema=schema)
+
+
+def write_vector_cube_parquet(
     da: xr.DataArray,
     path: Path,
     geom_dim: str = "geometry",
     emb_dim: str = "embedding",
-    time_dim: str = "time",
-    time_fmt: str | None = None,
-    geom_chunk: int = 50_000,  # used only if the cube isn't dask-backed yet
-    arrow: bool = True,  # fixed_size_list columns instead of object dtype
+    time_dim: str | None = "time",
+    time_fmt=None,
+    compression: str = "zstd",
+    compression_level=None,
+    row_group_size=None,
+    partitioned=False,  # True -> one file per geometry chunk (parallel)
 ):
-    """
-    Vector data cube (xvec) -> lazy ``dask_geopandas.GeoDataFrame``.
-
-    Columns: ``geometry`` + ``embedding`` (no time dim) or one
-    ``embedding_{iso_date}`` column per timestamp. Nothing is read until
-    ``.compute()`` / ``.to_parquet()``.
-
-    The time axis is *sliced*, not rechunked: each timestamp is an independent
-    column, so no shuffle along time is required.
-    """
-
     for dim in (geom_dim, emb_dim):
         if dim not in da.dims:
             raise ValueError(f"Missing required dimension {dim!r}; dims={da.dims}")
@@ -215,15 +236,10 @@ def _vector_cube_to_gdf(
     if extra:
         raise ValueError(f"Unexpected extra dimension(s): {sorted(extra)}")
 
-    has_time = time_dim is not None
+    has_time = time_dim is not None and time_dim in da.dims  # <- fixed
     order = (geom_dim, time_dim, emb_dim) if has_time else (geom_dim, emb_dim)
     da = da.transpose(*order)
 
-    # we shouldnt need this as cube is dask-backed
-    # if da.chunks is None:
-    #     da = da.chunk({geom_dim: geom_chunk})
-
-    # only the embedding axis must be contiguous per row; time is left alone
     if len(da.chunks[da.get_axis_num(emb_dim)]) > 1:
         da = da.chunk({emb_dim: -1})
 
@@ -231,57 +247,76 @@ def _vector_cube_to_gdf(
     crs = _get_crs(da, geom_dim)
     columns = _column_labels(da, time_dim, time_fmt)
 
-    n_emb = da.sizes[emb_dim]
+    schema = _build_schema(
+        columns,
+        pa.from_numpy_dtype(da.dtype),
+        da.sizes[emb_dim],
+        _geo_metadata(geoms, crs),
+    )
 
-    arrow_dtype = None
-    if arrow:
-        value_type = pa.from_numpy_dtype(da.dtype)
-        arrow_dtype = pd.ArrowDtype(pa.list_(value_type, n_emb))
-
-    # one delayed block list per column, each aligned on the geometry chunking
     if has_time:
         per_column = [
-            da.isel({time_dim: i}).data.to_delayed().ravel()  # pure getitem
+            da.isel({time_dim: i}).data.to_delayed().ravel()
             for i in range(da.sizes[time_dim])
         ]
     else:
         per_column = [da.data.to_delayed().ravel()]
 
     sizes = da.chunks[0]
-    parts, offset = [], 0
-    for j, n in enumerate(sizes):
-        idx = pd.RangeIndex(offset, offset + n)
-        blocks = [col[j] for col in per_column]
-        parts.append(
-            delayed(_partition_to_gdf)(
-                blocks, geoms[offset : offset + n], columns, crs, idx, arrow_dtype
+    offsets = np.cumsum((0,) + tuple(sizes))
+
+    # ---- one file per chunk: fully parallel -------------------------------
+    if partitioned:
+        out = Path(path)
+        out.mkdir(parents=True, exist_ok=True)
+
+        @dask.delayed
+        def _write_part(blocks, part_geoms, dest):
+            pq.write_table(
+                _blocks_to_table(blocks, part_geoms, schema),
+                dest,
+                compression=compression,
+                compression_level=compression_level,
             )
-        )
-        offset += n
+            return dest
 
-    divisions = tuple(np.cumsum((0,) + tuple(sizes)))
-    divisions = divisions[:-1] + (divisions[-1] - 1,)  # last division is inclusive
-    meta = _meta(columns, crs, arrow_dtype)
+        tasks = [
+            _write_part(
+                [col[j] for col in per_column],
+                geoms[offsets[j] : offsets[j + 1]],
+                str(out / f"part.{j:05d}.parquet"),
+            )
+            for j in range(len(sizes))
+        ]
+        return list(dask.compute(*tasks))
 
-    gdf = ddf.from_delayed(parts, meta=meta, divisions=divisions, verify_meta=False)
-
-    # dispatch should already have produced a spatial frame; be explicit if not
-    if not isinstance(gdf, dask_geopandas.GeoDataFrame):
-        gdf = dask_geopandas.from_dask_dataframe(ddf, geometry="geometry")
-
-    schema = pa.schema(
-        [("geometry", pa.binary())]
-        + [(c, pa.list_(pa.float32(), n_emb)) for c in columns]
-    )
-    gdf.to_parquet(path, schema=schema, write_index=False)
+    # ---- single file: sequential, bounded memory ---------------------------
+    Path(path).parent.mkdir(parents=True, exist_ok=True)
+    with pq.ParquetWriter(
+        path,
+        schema,
+        compression=compression,
+        compression_level=compression_level,
+    ) as writer:
+        for j in range(len(sizes)):
+            blocks = dask.compute(*[col[j] for col in per_column])
+            table = _blocks_to_table(blocks, geoms[offsets[j] : offsets[j + 1]], schema)
+            writer.write_table(table, row_group_size=row_group_size)
+    return path
 
 
 def _save_as_parquet(datacube: xr.DataArray, path: Path) -> bool:
     geometry_dim = dim_utils.get_geometry_dim_name(datacube)
-    time_dim_name = dim_utils.get_time_dim_name(datacube)
     emb_dim_name = dim_utils.get_embedding_dim_name(datacube)
 
-    _vector_cube_to_gdf(datacube, path, geometry_dim, emb_dim_name, time_dim_name)
+    try:
+        time_dim_name = dim_utils.get_time_dim_name(datacube)
+    except DimensionMissing:
+        time_dim_name = None
+
+    write_vector_cube_parquet(
+        datacube, path, geometry_dim, emb_dim_name, time_dim_name, partitioned=False
+    )
 
 
 def _update_stac_metadata_vector_cube(stac_metadata: dict, datacube: xr.DataArray):
