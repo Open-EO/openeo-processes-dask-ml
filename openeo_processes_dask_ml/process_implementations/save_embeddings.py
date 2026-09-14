@@ -1,16 +1,19 @@
 import json
+import warnings
 from datetime import datetime
 from pathlib import Path
 from typing import Any
 from uuid import uuid4
 
 import dask
+import geopandas as gpd
 import numpy as np
 import pandas as pd
 import pyarrow as pa
 import pyarrow.parquet as pq
 import shapely
 import xarray as xr
+import xvec  # xr xvec accessor, do not remove, even if IDE says we dont need it
 from openeo_processes_dask.process_implementations.exceptions import DimensionMissing
 from pyproj import CRS
 
@@ -74,6 +77,19 @@ def _save_as_zarr(datacube: xr.DataArray, result_dir: Path, zarr_dir: Path) -> P
     return zip_path
 
 
+def _set_stac_spatial_metadata(stac_metadata: dict, bbox: list[float]):
+    """
+    Sets spatial metadata of the STAC Item: bbox and geometry.
+    :param stac_metadata: dict of the STAC Item
+    :param bbox: list of four floats, [xmin, ymin, xmax, ymax]
+    """
+    if len(bbox) != 4:
+        raise ValueError("Length of bbox must be exactly 4: [xmin, ymin, xmax, ymax]")
+    bbox_polygon = json.loads(shapely.to_geojson(shapely.box(*bbox)))
+    stac_metadata["bbox"] = bbox
+    stac_metadata["geometry"] = bbox_polygon
+
+
 def _set_stac_spatial_metadata_raster(stac_metadata: dict, datacube: xr.DataArray):
     x_dim, y_dim = dim_utils.get_spatial_dim_names(datacube)
 
@@ -83,20 +99,7 @@ def _set_stac_spatial_metadata_raster(stac_metadata: dict, datacube: xr.DataArra
     xmax = float(max(datacube.coords[x_dim].data))
     ymax = float(max(datacube.coords[y_dim].data))
     bbox = [xmin, ymin, xmax, ymax]
-
-    geom = {
-        "type": "Polygon",
-        "coordinates": [
-            [xmin, ymin],
-            [xmax, ymin],
-            [xmax, ymax],
-            [xmin, ymax],
-            [xmin, ymin],
-        ],
-    }
-
-    stac_metadata["bbox"] = bbox
-    stac_metadata["geometry"] = geom
+    _set_stac_spatial_metadata(stac_metadata, bbox)
 
 
 def _set_stac_time_metadata(stac_metadata: dict, datacube: xr.DataArray):
@@ -120,7 +123,24 @@ def _set_stac_time_metadata(stac_metadata: dict, datacube: xr.DataArray):
 
 def _set_stac_embedding_metadata(stac_metadata: dict, datacube: xr.DataArray):
     emb_dim = dim_utils.get_embedding_dim_name(datacube)
-    stac_metadata["properties"]["emb:type"] = "patch"
+    emb_type = datacube.attrs.get("emb:type")
+    if emb_type is None:
+        patch_dim_options = ["patch", "patch_x", "patch_y"]
+        if any(x in patch_dim_options for x in datacube.dims):
+            emb_type = "patch"
+
+        elif dim_utils.is_vector_datacube(datacube):
+            emb_type = "chip"
+
+        elif dim_utils.is_raster_datacube(datacube):
+            # TODO: distinguish between chip and pixel embs
+            emb_type = "chip"
+
+        else:
+            emb_type = "UNKNOWN"
+            warnings.warn("Cannot reliably determine embedding type")
+
+    stac_metadata["properties"]["emb:type"] = emb_type
     stac_metadata["properties"]["emb:dimensions"] = len(datacube.coords[emb_dim].data)
     stac_metadata["properties"]["data_type"] = str(datacube.dtype)
 
@@ -144,6 +164,37 @@ def _update_stac_metadata_raster_cube(
     _set_stac_spatial_metadata_raster(stac_metadata, datacube)
     _set_stac_time_metadata(stac_metadata, datacube)
     _set_stac_embedding_metadata_raster(stac_metadata, datacube)
+
+
+def _set_stac_spatial_metadata_vector(stac_metadata: dict, datacube: xr.DataArray):
+    geom_dim = dim_utils.get_geometry_dim_name(datacube)
+
+    crs = datacube[geom_dim].attrs.get("crs")
+    to_crs = "EPSG:4326"
+    geoms = gpd.GeoSeries(datacube.coords[geom_dim].values, crs=crs).to_crs(to_crs)
+
+    bbox = geoms.total_bounds.tolist()
+    _set_stac_spatial_metadata(stac_metadata, bbox)
+
+
+def _set_stac_embedding_metadata_vector(stac_metadata: dict, datacube: xr.DataArray):
+    _set_stac_embedding_metadata(stac_metadata, datacube)
+    stac_metadata["properties"]["emb:chip_layout"]["layout_type"] = "variable_grid"
+
+
+def _update_stac_metadata_vector_cube(stac_metadata: dict, datacube: xr.DataArray):
+    _set_stac_spatial_metadata_vector(stac_metadata, datacube)
+    _set_stac_time_metadata(stac_metadata, datacube)
+    _set_stac_embedding_metadata_vector(stac_metadata, datacube)
+    return stac_metadata
+
+
+def _set_stac_embedding_asset_metadata_vector(
+    stac_metadata: dict, out_path: Path
+) -> dict:
+    stac_metadata["assets"]["embeddings"]["href"] = str(out_path.absolute())
+    stac_metadata["assets"]["embeddings"]["type"] = "application/vnd.apache.parquet"
+    return stac_metadata
 
 
 # ----------------------------------------------------
@@ -224,7 +275,7 @@ def _blocks_to_table(
     return pa.Table.from_arrays(arrays, schema=schema)
 
 
-def write_vector_cube_parquet(
+def _write_vector_cube_parquet(
     da: xr.DataArray,
     path: Path,
     geom_dim: str = "geometry",
@@ -324,16 +375,11 @@ def _save_as_parquet(datacube: xr.DataArray, path: Path) -> bool:
         time_dim_name = None
 
     try:
-        write_vector_cube_parquet(
+        _write_vector_cube_parquet(
             datacube, path, geometry_dim, emb_dim_name, time_dim_name, partitioned=False
         )
-        return True
-    except:
-        return False
-
-
-def _update_stac_metadata_vector_cube(stac_metadata: dict, datacube: xr.DataArray):
-    return stac_metadata
+    except Exception as e:
+        raise Exception("Failed writing Geoparquet.")
 
 
 def _save_metadata_file(stac_metadata: dict, metadata_path: Path) -> bool:
@@ -376,11 +422,13 @@ def save_embeddings(data: xr.DataArray) -> bool:
         data_saved = True
 
     if dim_utils.is_vector_datacube(data):
-        # this implieds embeddings in irregular raster -> save as geo-parquet
+        # this implies embeddings in irregular raster -> save as geo-parquet
         parquet_out_path = result_dir / "result.geoparquet"
-        # _update_stac_metadata_vector_cube(stac_metadata, data)
+        _update_stac_metadata_vector_cube(stac_metadata, data)
         _save_as_parquet(data, parquet_out_path)
-
+        stac_metadata = _set_stac_embedding_asset_metadata_vector(
+            stac_metadata, parquet_out_path
+        )
         data_saved = True
 
     if not data_saved:
