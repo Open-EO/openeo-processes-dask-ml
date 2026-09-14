@@ -873,13 +873,19 @@ def load_embeddings(
         raise OpenEOException("Provided URL does not point to a valid STAC object")
 
     if isinstance(stac_obj, pystac.Item):
-        return _load_embedding_item(
+        datacube = _load_embedding_item(
             stac_obj, asset_name, spatial_extent, temporal_extent, False
         )
+        emb_type = stac_obj.properties.get("emb:type")
     elif isinstance(stac_obj, pystac.Collection):
-        return _load_embedding_collection(
+        datacube = _load_embedding_collection(
             url, stac_obj, spatial_extent, temporal_extent, asset_name
         )
-    raise NotImplementedError(
-        f"Loading of a STAC object of type {stac_obj.STAC_OBJECT_TYPE} is not supported"
-    )
+        emb_type = stac_obj.extra_fields.get("emb:type")
+    else:
+        raise NotImplementedError(
+            f"Loading of a STAC object of type {stac_obj.STAC_OBJECT_TYPE} is not supported"
+        )
+    if emb_type is not None:
+        datacube.attrs["emb:type"] = emb_type
+    return datacube
