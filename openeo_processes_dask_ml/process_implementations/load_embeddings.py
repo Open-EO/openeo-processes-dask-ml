@@ -1040,4 +1040,6 @@ def load_embeddings(
         )
     if emb_type is not None:
         datacube.attrs["emb:type"] = emb_type
+
+    datacube.name = None
     return datacube
