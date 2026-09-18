@@ -413,7 +413,7 @@ def _prepare_geoparquet(
     bbox: BoundingBox | None,
     geom_column_name: str,
     embedding_col_names: list[str],
-    emb_size: int,
+    emb_shape: tuple[int, ...],
     emb_dtype: np.dtype,
     to_epsg_4326: bool = False,
 ) -> tuple[NDArray[shapely.Geometry], da.Array]:
@@ -421,22 +421,32 @@ def _prepare_geoparquet(
     def _stack_partition(
         df: pd.DataFrame,
         columns: Sequence[str],
-        emb_size: int,
+        emb_shape: tuple[int, ...],
         dtype: np.typing.DTypeLike,
     ) -> np.typing.NDArray[np.generic]:
         """
         df      : pandas DataFrame partition containing `columns`
         returns : np.ndarray of shape (n_cols, n_rows, emb_size)
         """
+
+        def deep_stack(arr: np.ndarray) -> np.ndarray:
+            if arr.dtype == object:
+                return np.stack([deep_stack(x) for x in arr])
+            return arr
+
         n_rows = len(df)
         n_cols = len(columns)
 
         # empty partitions would break np.stack -> correctly shaped empty block
         if n_rows == 0:
-            return np.empty((n_cols, 0, emb_size), dtype=dtype)
+            return np.empty((n_cols, 0, *emb_shape), dtype=dtype)
 
-        # one (n_rows, emb_size) block per column ...
-        per_col = [np.stack(df[c].to_numpy()) for c in columns]
+        # convert nested 1D numpy array of array objects into a proper n-D numpy array
+        per_col = []
+        for c in columns:
+            matrix = deep_stack(df[c].values)
+            per_col.append(matrix)
+
         # ... stacked along a new leading "column" axis -> (n_cols, n_rows, emb_size)
         out = np.stack(per_col, axis=0)
         return out.astype(dtype, copy=False)
@@ -484,8 +494,8 @@ def _prepare_geoparquet(
 
     arrays = [
         da.from_delayed(
-            _stack_partition(part, embedding_col_names, emb_size, emb_dtype),
-            shape=(len(embedding_col_names), length, emb_size),  # rows are axis 1 now
+            _stack_partition(part, embedding_col_names, emb_shape, emb_dtype),
+            shape=(len(embedding_col_names), length, *emb_shape),  # rows are axis 1 now
             dtype=emb_dtype,
         )
         for part, length in zip(emb_parts, lengths)
@@ -514,7 +524,7 @@ def _get_parquet_embedding_column_names(parquet_schema: pyarrow.Schema) -> list[
         )
 
     embedding_col_names = []
-    emb_size = None
+    emb_shape = None
     emb_dtype = None
 
     for col_name in possible_embedding_columns:
@@ -522,21 +532,25 @@ def _get_parquet_embedding_column_names(parquet_schema: pyarrow.Schema) -> list[
         emb_col_dtype = parquet_schema.field(col_name).type
 
         if isinstance(emb_col_dtype, pyarrow.FixedSizeListType):
-            current_size = emb_col_dtype.list_size
-            current_dtype = emb_col_dtype.value_type.to_pandas_dtype()
+            try:
+                current_shape, current_dtype = _get_parquet_embedding_shape_and_dtype(
+                    emb_col_dtype
+                )
+            except TypeError:
+                continue
 
             # If this is the first FixedSizeList we've found, it sets the standard
             if not embedding_col_names:
                 embedding_col_names.append(col_name)
-                emb_size = current_size
+                emb_shape = current_shape
                 emb_dtype = current_dtype
 
             # For subsequent columns, verify they match the first one's dimensions and type
-            elif current_size == emb_size and current_dtype == emb_dtype:
+            elif current_shape == emb_shape and current_dtype == emb_dtype:
                 embedding_col_names.append(col_name)
             else:
                 raise Exception(
-                    "All embedding columns must be the same length and dtype"
+                    "All embedding columns must be the same shape and dtype"
                 )
 
     if len(embedding_col_names) == 0:
@@ -548,6 +562,43 @@ def _get_parquet_embedding_column_names(parquet_schema: pyarrow.Schema) -> list[
     return embedding_col_names
 
 
+def _get_parquet_embedding_shape_and_dtype(
+    column_type: pyarrow.DataType,
+) -> tuple[tuple[int, ...], np.typing.DTypeLike]:
+    """
+    Extract (shape, dtype) from a nested PyArrow FixedSizeList type.
+
+    Examples:
+        fixed_size_list<float32>[224][224][3]
+            -> ((224, 224, 3), np.float32)
+
+        fixed_size_list<fixed_size_list<int16>[10]>[20]
+            -> ((20, 10), np.int16)
+
+    Raises:
+        TypeError: If any level is neither FixedSizeList nor a numeric
+                   primitive type.
+    """
+    shape: list[int] = []
+    current = column_type
+
+    while pyarrow.types.is_fixed_size_list(current):
+        shape.append(current.list_size)
+        current = current.value_type
+
+    # Only allow numeric leaf types.
+    if not (pyarrow.types.is_integer(current) or pyarrow.types.is_floating(current)):
+        raise TypeError(
+            f"Expected a numeric type or FixedSizeList at every level, "
+            f"but found {current}"
+        )
+
+    # Arrow numeric primitive -> NumPy dtype.
+    dtype = np.dtype(current.to_pandas_dtype())
+
+    return tuple(shape), dtype
+
+
 def _load_parquet_item(
     path: str, bbox: BoundingBox | None, to_epsg_4326: bool = False
 ) -> xr.DataArray:
@@ -555,10 +606,10 @@ def _load_parquet_item(
         parquet_schema = pq.read_schema(file)
     embedding_col_names = _get_parquet_embedding_column_names(parquet_schema)
 
-    # we have checked before that all columns are FixedSizeList
-    emb_col_dtype = parquet_schema.field(embedding_col_names[0]).type
-    emb_size = emb_col_dtype.list_size
-    emb_dtype = emb_col_dtype.value_type.to_pandas_dtype()
+    # we have already asserted that all embedding columns are same shape and dtype
+
+    emb_col_type = parquet_schema.field(embedding_col_names[0]).type
+    emb_shape, emb_dtype = _get_parquet_embedding_shape_and_dtype(emb_col_type)
 
     # get geometry column name
     geo_metadata_bytes = parquet_schema.metadata.get(b"geo")
@@ -585,10 +636,11 @@ def _load_parquet_item(
         bbox,
         geom_column_name,
         embedding_col_names,
-        emb_size,
+        emb_shape,
         emb_dtype,
         to_epsg_4326,
     )
+
     emb_cube_coords["geometry"] = geom_coords
     try:
         time_coords = [np.datetime64(x.split("_")[1], "s") for x in embedding_col_names]
@@ -596,8 +648,20 @@ def _load_parquet_item(
     except IndexError, ValueError:
         pass
 
+    # infer dimensions based on embedding shape
+    if len(emb_shape) == 1:
+        emb_dims = ["embedding"]
+    elif len(emb_shape) == 2:
+        emb_dims = ["patch", "embedding"]
+    elif len(emb_shape) == 3:
+        emb_dims = ["patch_x", "patch_y", "embedding"]
+    else:
+        raise NotImplementedError(
+            f"Embeddings of shape {emb_shape} unsupported. Embeddings shape must be 1D (embedding), 2D (patch, embedding), or 3D (patch_x, patch_y, embedding)"
+        )
+
     emb_cube = xr.DataArray(
-        emb_values, dims=["time", "geometry", "embedding"], coords=emb_cube_coords
+        emb_values, dims=["time", "geometry", *emb_dims], coords=emb_cube_coords
     ).xvec.set_geom_indexes("geometry", crs=crs)
     return emb_cube
 
