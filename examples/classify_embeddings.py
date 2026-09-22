@@ -88,10 +88,5 @@ process_graph = {
     },
 }
 
-# out = execute_graph_dict(process_graph)
-# print(out)
-
-import json
-
-with open("examples/process_graphs/classify_embeddings.json", "w") as file:
-    json.dump(process_graph, file)
+out = execute_graph_dict(process_graph)
+print(out)
