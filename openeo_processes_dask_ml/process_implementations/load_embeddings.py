@@ -698,7 +698,7 @@ def _load_embedding_item(
         emb_cube = _load_parquet_item(path, bbox, to_epsg_4326)
 
         # assign time coords if emb_cube does not have them yet
-        if "time" not in emb_cube.coords["time"]:
+        if "time" not in emb_cube.coords:
             time_len = len(emb_cube.coords["time"])
             if time_len == 1:
                 time_coords = [time]
