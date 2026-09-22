@@ -14,8 +14,15 @@ from dask import array as da
 from dask import dataframe as ddf
 from dask import delayed
 from pystac.extensions.classification import Classification
-from sklearn.ensemble import RandomForestClassifier
-from sklearn.metrics import accuracy_score, classification_report, cohen_kappa_score
+from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor
+from sklearn.metrics import (
+    accuracy_score,
+    classification_report,
+    cohen_kappa_score,
+    mean_absolute_error,
+    r2_score,
+    root_mean_squared_error,
+)
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import LabelEncoder
 
@@ -132,6 +139,34 @@ class SkLearnModel(MLModel):
 
         return result
 
+    def fit_model(self, training_set: xr.DataArray) -> Self:
+        training_set = training_set.chunk(-1).persist()
+        out_dims = self.output.result.dim_order
+        if len(out_dims) > 1:
+            raise ValueError("Only one output dimension is allowed in RF classifier")
+
+        dim_mapping = self.get_datacube_dimension_mapping(training_set)
+        dims = [d[0] for d in dim_mapping]
+
+        stacked = training_set.stack(feature=dims)
+
+        # I pitty anyone who at one point will have to debug this line...
+        new_cols = [
+            "_".join(str(v) for v in vals)
+            for vals in zip(*[stacked.coords[d].values for d in dims])
+        ]
+        stacked = stacked.drop_vars(["feature", *dims]).assign_coords(feature=new_cols)
+
+        training_set_ds = stacked.to_dataset(dim="feature")
+        training_set_df = training_set_ds.to_dask_dataframe().reset_index(drop=True)
+
+        fitted_model_path = self.fit(training_set_df, new_cols)
+
+        rf_model_copy = copy.deepcopy(self)
+        rf_model_copy._model_filepath = fitted_model_path
+
+        return rf_model_copy
+
 
 class RfClassModel(SkLearnModel):
     @staticmethod
@@ -209,30 +244,54 @@ class RfClassModel(SkLearnModel):
 
         return model_path
 
-    def fit_model(self, training_set: xr.DataArray) -> Self:
-        training_set = training_set.chunk(-1).persist()
-        out_dims = self.output.result.dim_order
-        if len(out_dims) > 1:
-            raise ValueError("Only one output dimension is allowed in RF classifier")
 
-        dim_mapping = self.get_datacube_dimension_mapping(training_set)
-        dims = [d[0] for d in dim_mapping]
+class RfRegrModel(SkLearnModel):
+    @staticmethod
+    def init_model(
+        max_features: int | str | float | None,
+        n_trees: int,
+        model_id: str,
+        seed: int = None,
+    ):
+        r = RandomForestRegressor(n_trees, max_features=max_features, random_state=seed)
 
-        stacked = training_set.stack(feature=dims)
+        # save model to disk
+        modelpath = MODEL_CACHE_DIR + "/" + model_id + ".pkl"
+        with open(modelpath, "wb") as file:
+            pickle.dump(r, file)
 
-        # I pitty anyone who at one point will have to debug this line...
-        new_cols = [
-            "_".join(str(v) for v in vals)
-            for vals in zip(*[stacked.coords[d].values for d in dims])
-        ]
-        stacked = stacked.drop_vars(["feature", *dims]).assign_coords(feature=new_cols)
+        return modelpath
 
-        training_set_ds = stacked.to_dataset(dim="feature")
-        training_set_df = training_set_ds.to_dask_dataframe().reset_index(drop=True)
+    @delayed
+    def fit(self, training_set_df: ddf.DataFrame, pred_col_names: list[str]) -> str:
+        random.seed(self.seed)
+        np.random.seed(self.seed)
 
-        fitted_model_path = self.fit(training_set_df, new_cols)
+        model_path = self._model_filepath
 
-        rf_model_copy = copy.deepcopy(self)
-        rf_model_copy._model_filepath = fitted_model_path
+        with open(model_path, "rb") as file:
+            model: RandomForestClassifier = pickle.load(file)
 
-        return rf_model_copy
+        out_col_name = self.output.result.dim_order[0]
+
+        X = training_set_df[pred_col_names]
+        y = training_set_df[out_col_name]
+
+        X_train, X_val, y_train, y_val = train_test_split(
+            X, y, test_size=0.15, random_state=self.seed
+        )
+
+        # Here we finally fit the model!!!
+        model.fit(X_train.values, y_train)
+
+        with open(model_path, "wb") as file:
+            pickle.dump(model, file)
+
+        y_pred = model.predict(X_val)
+
+        print("Regression Result: ")
+        print(f"R2-Score: {r2_score(y_val, y_pred)}")
+        print(f"RMSE: : {root_mean_squared_error(y_val, y_pred)}")
+        print(f"MAE: {mean_absolute_error(y_val, y_pred)}")
+
+        return model_path
