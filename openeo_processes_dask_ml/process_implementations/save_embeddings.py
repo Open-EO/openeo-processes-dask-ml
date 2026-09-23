@@ -1,5 +1,5 @@
 import json
-import warnings
+import logging
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -31,6 +31,8 @@ _TYPE_NAMES = {
     5: "MultiPolygon",
     6: "GeometryCollection",
 }
+
+logger = logging.getLogger(__name__)
 
 
 def _get_stac_item_template(_id: str) -> dict:
@@ -138,7 +140,7 @@ def _set_stac_embedding_metadata(stac_metadata: dict, datacube: xr.DataArray):
 
         else:
             emb_type = "UNKNOWN"
-            warnings.warn("Cannot reliably determine embedding type")
+            logger.warning("Cannot reliably determine embedding type")
 
     stac_metadata["properties"]["emb:type"] = emb_type
     stac_metadata["properties"]["emb:dimensions"] = len(datacube.coords[emb_dim].data)

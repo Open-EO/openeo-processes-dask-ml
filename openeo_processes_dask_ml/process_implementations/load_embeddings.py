@@ -1,6 +1,6 @@
 import hashlib
 import json
-import warnings
+import logging
 from collections.abc import Sequence
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime as Datetime
@@ -40,6 +40,8 @@ from openeo_processes_dask_ml.process_implementations.utils import (
     zarr_utils,
     zip_utils,
 )
+
+logger = logging.getLogger(__name__)
 
 
 def _get_item_time(stac_item: pystac.Item) -> Datetime:
@@ -193,7 +195,7 @@ def _load_zarr(
         y_is_between = np.all((y_coords >= -91) & (y_coords <= 91))
 
         if x_is_between and y_is_between:
-            warnings.warn(
+            logger.warning(
                 "Could not detect a CRS in the zarr store. Assuming EPSG:4326"
             )
             crs = None
@@ -708,7 +710,7 @@ def _load_embedding_item(
                     np.datetime64(time_end, "s"),
                 ]
             else:
-                warnings.warn(
+                logger.warning(
                     "Could not determine time coordinates. "
                     "Assigned time coordiantes will be incorrect."
                 )
