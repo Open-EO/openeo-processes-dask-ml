@@ -77,13 +77,6 @@ class SkLearnModel(MLModel):
         return pred.reshape(orig_shape)
 
     def run_model(self, datacube: xr.DataArray) -> xr.DataArray:
-        # !!!!
-        # At the moment only works for models that take in a single dim (e.g. bands)
-        # if len(self.input.input.dim_order) > 1:
-        #     raise NotImplementedError(
-        #         "this model is not supported as it takes more than one dim as input"
-        #     )
-
         if len(self.output.result.dim_order) > 1:
             raise NotImplementedError(
                 "this model is not supported as it outputs more than 1 dimension"
