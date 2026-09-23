@@ -1,4 +1,5 @@
 import copy
+import logging
 import math
 import pickle
 import random
@@ -30,6 +31,8 @@ from openeo_processes_dask_ml.model_execution import run_sklearn_model
 from openeo_processes_dask_ml.process_implementations.constants import MODEL_CACHE_DIR
 
 from .data_model import MLModel
+
+logger = logging.getLogger(__name__)
 
 
 class SkLearnModel(MLModel):
@@ -228,12 +231,10 @@ class RfClassModel(SkLearnModel):
             ),  # start range at 1 and end at 1 more due to encodeed labels starting at 1
             target_names=encoder.classes_,
         )
-        print("Classification Report: \n")
-        print(report)
-        print()
-        print(f"Overall Accuracy: {accuracy_score(y_val, y_pred)}")
-        print()
-        print(f"Cohens Kappa: {cohen_kappa_score(y_val, y_pred)}")
+        logger.info("Classification Report: \n")
+        logger.info(report)
+        logger.info(f"Overall Accuracy: {accuracy_score(y_val, y_pred)}")
+        logger.info(f"Cohens Kappa: {cohen_kappa_score(y_val, y_pred)}")
 
         return model_path
 
@@ -282,9 +283,9 @@ class RfRegrModel(SkLearnModel):
 
         y_pred = model.predict(X_val)
 
-        print("Regression Result: ")
-        print(f"R2-Score: {r2_score(y_val, y_pred)}")
-        print(f"RMSE: : {root_mean_squared_error(y_val, y_pred)}")
-        print(f"MAE: {mean_absolute_error(y_val, y_pred)}")
+        logger.info("Regression Result: ")
+        logger.info(f"R2-Score: {r2_score(y_val, y_pred)}")
+        logger.info(f"RMSE: : {root_mean_squared_error(y_val, y_pred)}")
+        logger.info(f"MAE: {mean_absolute_error(y_val, y_pred)}")
 
         return model_path
