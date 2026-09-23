@@ -1,3 +1,4 @@
+from .custom_processes.sample_values_at_locations import sample_values_at_locations
 from .init_models import mlm_class_random_forest, mlm_regr_random_forest
 from .load_embeddings import load_embeddings
 from .load_model import load_stac_ml
