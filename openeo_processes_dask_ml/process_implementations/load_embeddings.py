@@ -757,13 +757,11 @@ def _load_embedding_collection_tif(
 ):
     # 1. Extract metadata + paths first (cheap, keeps ordering)
     loaded = []
-    print("load items")
     for stac_item in items:
         path = stac_item.assets[asset_name].href
         footprint = shapely.from_geojson(json.dumps(stac_item.geometry)).normalize()
         time = _get_item_time(stac_item)
         loaded.append({"path": path, "footprint": footprint, "time": time})
-    print("done loading items")
 
     # 2. Load all tiffs concurrently
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
