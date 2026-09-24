@@ -147,13 +147,13 @@ def test_load_tiff_1x1():
 def test_prepare_geoparquet_without_bbox_without_transform():
     path = "tests/data/embeddings.parquet"
     geom_array, da_array = _prepare_geoparquet(
-        path, None, "geometry", "embedding", 4, np.float32, False
+        path, None, "geometry", ["embedding"], (4,), np.float32, False
     )
     poly_utm: shapely.Polygon = shapely.box(404000, 5756000, 406000, 5758000)
     poly_wgs84 = shapely.box(0, 0, 180, 90)
 
     assert len(geom_array) == 4
-    assert da_array.shape == (4, 4)
+    assert da_array.shape == (1, 4, 4)
     assert isinstance(da_array, da.Array)
     assert np.all([isinstance(x, shapely.Point) for x in geom_array.ravel()])
     assert da_array.dtype == np.float32
@@ -167,13 +167,13 @@ def test_prepare_geoparquet_without_bbox_without_transform():
 def test_prepare_geoparquet_without_bbox_with_transform():
     path = "tests/data/embeddings.parquet"
     geom_array, da_array = _prepare_geoparquet(
-        path, None, "geometry", "embedding", 4, np.float32, True
+        path, None, "geometry", ["embedding"], (4,), np.float32, True
     )
     poly_utm: shapely.Polygon = shapely.box(404000, 5756000, 406000, 5758000)
     poly_wgs84 = shapely.box(0, 0, 180, 90)
 
     assert len(geom_array) == 4
-    assert da_array.shape == (4, 4)
+    assert da_array.shape == (1, 4, 4)
     assert isinstance(da_array, da.Array)
     assert np.all([isinstance(x, shapely.Point) for x in geom_array.ravel()])
     assert da_array.dtype == np.float32
@@ -195,13 +195,13 @@ def test_prepare_geoparquet_with_bbox_without_transform():
 
     path = "tests/data/embeddings.parquet"
     geom_array, da_array = _prepare_geoparquet(
-        path, bbox, "geometry", "embedding", 4, np.float32, False
+        path, bbox, "geometry", ["embedding"], (4,), np.float32, False
     )
     poly_utm: shapely.Polygon = shapely.box(404000, 5756000, 406000, 5758000)
     poly_wgs84 = shapely.box(0, 0, 180, 90)
 
     assert len(geom_array) == 2
-    assert da_array.shape == (2, 4)
+    assert da_array.shape == (1, 2, 4)
     assert isinstance(da_array, da.Array)
     assert np.all([isinstance(x, shapely.Point) for x in geom_array.ravel()])
     assert da_array.dtype == np.float32
@@ -223,13 +223,13 @@ def test_prepare_geoparquet_with_bbox_with_transform():
 
     path = "tests/data/embeddings.parquet"
     geom_array, da_array = _prepare_geoparquet(
-        path, bbox, "geometry", "embedding", 4, np.float32, True
+        path, bbox, "geometry", ["embedding"], (4,), np.float32, True
     )
     poly_utm: shapely.Polygon = shapely.box(404000, 5756000, 406000, 5758000)
     poly_wgs84 = shapely.box(0, 0, 180, 90)
 
     assert len(geom_array) == 2
-    assert da_array.shape == (2, 4)
+    assert da_array.shape == (1, 2, 4)
     assert isinstance(da_array, da.Array)
     assert np.all([isinstance(x, shapely.Point) for x in geom_array.ravel()])
     assert da_array.dtype == np.float32
@@ -249,7 +249,8 @@ def test_load_parquet_item_without_bbox_without_transform():
 
     assert "geometry" in e_dc.dims
     assert "embedding" in e_dc.dims
-    assert e_dc.shape == (4, 4)
+    assert "time" in e_dc.dims
+    assert e_dc.shape == (1, 4, 4)
     assert e_dc.dtype == np.float32
     assert isinstance(e_dc.data, da.Array)
     geom_coords = e_dc.coords["geometry"].values
@@ -271,7 +272,8 @@ def test_load_parquet_item_without_bbox_with_transform():
 
     assert "geometry" in e_dc.dims
     assert "embedding" in e_dc.dims
-    assert e_dc.shape == (4, 4)
+    assert "time" in e_dc.dims
+    assert e_dc.shape == (1, 4, 4)
     assert e_dc.dtype == np.float32
     assert isinstance(e_dc.data, da.Array)
     geom_coords = e_dc.coords["geometry"].values
@@ -301,7 +303,7 @@ def test_load_parquet_item_with_bbox_without_transform():
 
     assert "geometry" in e_dc.dims
     assert "embedding" in e_dc.dims
-    assert e_dc.shape == (2, 4)
+    assert e_dc.shape == (1, 2, 4)
     assert e_dc.dtype == np.float32
     assert isinstance(e_dc.data, da.Array)
     geom_coords = e_dc.coords["geometry"].values
@@ -331,7 +333,8 @@ def test_load_parquet_item_with_bbox_with_transform():
 
     assert "geometry" in e_dc.dims
     assert "embedding" in e_dc.dims
-    assert e_dc.shape == (2, 4)
+    assert "time" in e_dc.dims
+    assert e_dc.shape == (1, 2, 4)
     assert e_dc.dtype == np.float32
     assert isinstance(e_dc.data, da.Array)
     geom_coords = e_dc.coords["geometry"].values

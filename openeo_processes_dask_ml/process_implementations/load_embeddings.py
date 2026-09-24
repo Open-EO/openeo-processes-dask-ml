@@ -1,6 +1,6 @@
 import hashlib
 import json
-import warnings
+import logging
 from collections.abc import Sequence
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime as Datetime
@@ -40,6 +40,8 @@ from openeo_processes_dask_ml.process_implementations.utils import (
     zarr_utils,
     zip_utils,
 )
+
+logger = logging.getLogger(__name__)
 
 
 def _get_item_time(stac_item: pystac.Item) -> Datetime:
@@ -193,7 +195,7 @@ def _load_zarr(
         y_is_between = np.all((y_coords >= -91) & (y_coords <= 91))
 
         if x_is_between and y_is_between:
-            warnings.warn(
+            logger.warning(
                 "Could not detect a CRS in the zarr store. Assuming EPSG:4326"
             )
             crs = None
@@ -412,18 +414,47 @@ def _prepare_geoparquet(
     path: str,
     bbox: BoundingBox | None,
     geom_column_name: str,
-    emb_column_name: str,
-    emb_size: int,
+    embedding_col_names: list[str],
+    emb_shape: tuple[int, ...],
     emb_dtype: np.dtype,
     to_epsg_4326: bool = False,
 ) -> tuple[NDArray[shapely.Geometry], da.Array]:
     @delayed
-    def _stack_partition(series):
-        # series is a pandas Series of numpy arrays -> 2D array
-        return np.stack(series.to_numpy())
+    def _stack_partition(
+        df: pd.DataFrame,
+        columns: Sequence[str],
+        emb_shape: tuple[int, ...],
+        dtype: np.typing.DTypeLike,
+    ) -> np.typing.NDArray[np.generic]:
+        """
+        df      : pandas DataFrame partition containing `columns`
+        returns : np.ndarray of shape (n_cols, n_rows, emb_size)
+        """
+
+        def deep_stack(arr: np.ndarray) -> np.ndarray:
+            if arr.dtype == object:
+                return np.stack([deep_stack(x) for x in arr])
+            return arr
+
+        n_rows = len(df)
+        n_cols = len(columns)
+
+        # empty partitions would break np.stack -> correctly shaped empty block
+        if n_rows == 0:
+            return np.empty((n_cols, 0, *emb_shape), dtype=dtype)
+
+        # convert nested 1D numpy array of array objects into a proper n-D numpy array
+        per_col = []
+        for c in columns:
+            matrix = deep_stack(df[c].values)
+            per_col.append(matrix)
+
+        # ... stacked along a new leading "column" axis -> (n_cols, n_rows, emb_size)
+        out = np.stack(per_col, axis=0)
+        return out.astype(dtype, copy=False)
 
     gdf: dask_geopandas.GeoDataFrame = dask_geopandas.read_parquet(
-        path, columns=[geom_column_name, emb_column_name]
+        path, columns=[geom_column_name, *embedding_col_names]
     )
 
     if bbox is not None:
@@ -455,7 +486,7 @@ def _prepare_geoparquet(
     geom_parts = gdf[
         geom_column_name
     ].to_delayed()  # delayed objects, one per partition, for both columns
-    emb_parts = gdf[emb_column_name].to_delayed()
+    emb_parts = gdf[embedding_col_names].to_delayed()
 
     # compute geometries per partition (you need them as numpy coords anyway).
     # This ALSO gives us the exact row count of every partition.
@@ -465,48 +496,122 @@ def _prepare_geoparquet(
 
     arrays = [
         da.from_delayed(
-            _stack_partition(part),
-            shape=(length, emb_size),  # rows per partition unknown -> nan
+            _stack_partition(part, embedding_col_names, emb_shape, emb_dtype),
+            shape=(len(embedding_col_names), length, *emb_shape),  # rows are axis 1 now
             dtype=emb_dtype,
         )
         for part, length in zip(emb_parts, lengths)
     ]
-    embedding_array = da.concatenate(arrays, axis=0)
+    embedding_array = da.concatenate(arrays, axis=1)
     return geoms_array, embedding_array
+
+
+def _get_parquet_embedding_column_names(parquet_schema: pyarrow.Schema) -> list[str]:
+    # check geom column
+    # check embedding column (embedding or embeddings?)
+    # check if col is correct dtype (list? what float?)
+
+    # search for embedding column
+    possible_embedding_columns = []
+    col_names = [n.name for n in parquet_schema]
+    possible_embedding_col_names = ["embedding", "embeddings", "emb", "embs"]
+    for col_name in col_names:
+        # if pos_emb_col_name in col_names:
+        if any([col_name.startswith(p) for p in possible_embedding_col_names]):
+            possible_embedding_columns.append(col_name)
+    if len(possible_embedding_columns) == 0:
+        raise Exception(
+            f"Could not identify embedding column(s). They must start with either of"
+            f"{','.join(possible_embedding_col_names)}"
+        )
+
+    embedding_col_names = []
+    emb_shape = None
+    emb_dtype = None
+
+    for col_name in possible_embedding_columns:
+        # Use .type to get the actual DataType from the pyarrow Field
+        emb_col_dtype = parquet_schema.field(col_name).type
+
+        if isinstance(emb_col_dtype, pyarrow.FixedSizeListType):
+            try:
+                current_shape, current_dtype = _get_parquet_embedding_shape_and_dtype(
+                    emb_col_dtype
+                )
+            except TypeError:
+                continue
+
+            # If this is the first FixedSizeList we've found, it sets the standard
+            if not embedding_col_names:
+                embedding_col_names.append(col_name)
+                emb_shape = current_shape
+                emb_dtype = current_dtype
+
+            # For subsequent columns, verify they match the first one's dimensions and type
+            elif current_shape == emb_shape and current_dtype == emb_dtype:
+                embedding_col_names.append(col_name)
+            else:
+                raise Exception(
+                    "All embedding columns must be the same shape and dtype"
+                )
+
+    if len(embedding_col_names) == 0:
+        raise NotImplementedError(
+            f"Embedding column data type must be FixedSizeList and have the same "
+            f"length and dtype."
+        )
+
+    return embedding_col_names
+
+
+def _get_parquet_embedding_shape_and_dtype(
+    column_type: pyarrow.DataType,
+) -> tuple[tuple[int, ...], np.typing.DTypeLike]:
+    """
+    Extract (shape, dtype) from a nested PyArrow FixedSizeList type.
+
+    Examples:
+        fixed_size_list<float32>[224][224][3]
+            -> ((224, 224, 3), np.float32)
+
+        fixed_size_list<fixed_size_list<int16>[10]>[20]
+            -> ((20, 10), np.int16)
+
+    Raises:
+        TypeError: If any level is neither FixedSizeList nor a numeric
+                   primitive type.
+    """
+    shape: list[int] = []
+    current = column_type
+
+    while pyarrow.types.is_fixed_size_list(current):
+        shape.append(current.list_size)
+        current = current.value_type
+
+    # Only allow numeric leaf types.
+    if not (pyarrow.types.is_integer(current) or pyarrow.types.is_floating(current)):
+        raise TypeError(
+            f"Expected a numeric type or FixedSizeList at every level, "
+            f"but found {current}"
+        )
+
+    # Arrow numeric primitive -> NumPy dtype.
+    dtype = np.dtype(current.to_pandas_dtype())
+
+    return tuple(shape), dtype
 
 
 def _load_parquet_item(
     path: str, bbox: BoundingBox | None, to_epsg_4326: bool = False
 ) -> xr.DataArray:
-    # check geom column
-    # check embedding column (embedding or embeddings?)
-    # check if col is correct dtype (list? what float?)
     with fsspec.open(path, "rb") as file:
         parquet_schema = pq.read_schema(file)
+    embedding_col_names = _get_parquet_embedding_column_names(parquet_schema)
 
-    # search for embedding column
-    col_names = [n.name for n in parquet_schema]
-    possible_embedding_col_names = ["embedding", "embeddings", "emb", "embs"]
-    for pos_emb_col_name in possible_embedding_col_names:
-        if pos_emb_col_name in col_names:
-            emb_column_name = pos_emb_col_name
-            break
-    else:
-        raise Exception(
-            f"Could not identify embedding column. Must be named one of "
-            f"{','.join(possible_embedding_col_names)}"
-        )
+    # we have already asserted that all embedding columns are same shape and dtype
 
-    # get embedding column info: embedding length and datatype
-    emb_col_dtype = parquet_schema.field(emb_column_name).type
-    if isinstance(emb_col_dtype, pyarrow.FixedSizeListType):
-        emb_size = emb_col_dtype.list_size
-        emb_dtype = emb_col_dtype.value_type.to_pandas_dtype()
-    else:
-        raise NotImplementedError(
-            f"Embedding column data type is {str(emb_col_dtype)} which is unsupported."
-            f"Must be FixedSizeList"
-        )
+    emb_col_type = parquet_schema.field(embedding_col_names[0]).type
+    emb_shape, emb_dtype = _get_parquet_embedding_shape_and_dtype(emb_col_type)
 
     # get geometry column name
     geo_metadata_bytes = parquet_schema.metadata.get(b"geo")
@@ -527,11 +632,38 @@ def _load_parquet_item(
     else:
         crs = pyproj.CRS.from_json_dict(geo_metadata["columns"]["geometry"]["crs"])
 
+    emb_cube_coords = {}
     geom_coords, emb_values = _prepare_geoparquet(
-        path, bbox, geom_column_name, emb_column_name, emb_size, emb_dtype, to_epsg_4326
+        path,
+        bbox,
+        geom_column_name,
+        embedding_col_names,
+        emb_shape,
+        emb_dtype,
+        to_epsg_4326,
     )
+
+    emb_cube_coords["geometry"] = geom_coords
+    try:
+        time_coords = [np.datetime64(x.split("_")[1], "s") for x in embedding_col_names]
+        emb_cube_coords["time"] = time_coords
+    except IndexError, ValueError:
+        pass
+
+    # infer dimensions based on embedding shape
+    if len(emb_shape) == 1:
+        emb_dims = ["embedding"]
+    elif len(emb_shape) == 2:
+        emb_dims = ["patch", "embedding"]
+    elif len(emb_shape) == 3:
+        emb_dims = ["patch_x", "patch_y", "embedding"]
+    else:
+        raise NotImplementedError(
+            f"Embeddings of shape {emb_shape} unsupported. Embeddings shape must be 1D (embedding), 2D (patch, embedding), or 3D (patch_x, patch_y, embedding)"
+        )
+
     emb_cube = xr.DataArray(
-        emb_values, dims=["geometry", "embedding"], coords={"geometry": geom_coords}
+        emb_values, dims=["time", "geometry", *emb_dims], coords=emb_cube_coords
     ).xvec.set_geom_indexes("geometry", crs=crs)
     return emb_cube
 
@@ -547,6 +679,8 @@ def _load_embedding_item(
     media_type = embedding_asset.media_type
     path = embedding_asset.href
     time = _get_item_time(stac_item)
+    time_start = stac_item.properties.get("start_datetime")
+    time_end = stac_item.properties.get("end_datetime")
 
     # we assume that embeddings as tif or parquet are purely spatial
     # if its it zarr, it can be spatial or spatio-temporal
@@ -560,12 +694,32 @@ def _load_embedding_item(
         return emb_cube
 
     # parquet file:
-    # todo: handle temporal parquet
     if media_type.startswith("application/x-parquet") or media_type.startswith(
         "application/vnd.apache.parquet"
     ):
         emb_cube = _load_parquet_item(path, bbox, to_epsg_4326)
-        emb_cube = emb_cube.expand_dims({"time": [time]})
+
+        # assign time coords if emb_cube does not have them yet
+        if "time" not in emb_cube.coords:
+            time_len = len(emb_cube.coords["time"])
+            if time_len == 1:
+                time_coords = [time]
+            elif time_len == 2 and time_start is not None and time_end is not None:
+                time_coords = [
+                    np.datetime64(time_start, "s"),
+                    np.datetime64(time_end, "s"),
+                ]
+            else:
+                logger.warning(
+                    "Could not determine time coordinates. "
+                    "Assigned time coordiantes will be incorrect."
+                )
+                time_coords = [
+                    np.datetime64("0001-01-01", "s") + np.timedelta64(i, "D")
+                    for i in range(time_len)
+                ]
+            emb_cube = emb_cube.assign_coords({"time": time_coords})
+
         return emb_cube
 
     # zarr store
@@ -603,13 +757,11 @@ def _load_embedding_collection_tif(
 ):
     # 1. Extract metadata + paths first (cheap, keeps ordering)
     loaded = []
-    print("load items")
     for stac_item in items:
         path = stac_item.assets[asset_name].href
         footprint = shapely.from_geojson(json.dumps(stac_item.geometry)).normalize()
         time = _get_item_time(stac_item)
         loaded.append({"path": path, "footprint": footprint, "time": time})
-    print("done loading items")
 
     # 2. Load all tiffs concurrently
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
@@ -873,13 +1025,21 @@ def load_embeddings(
         raise OpenEOException("Provided URL does not point to a valid STAC object")
 
     if isinstance(stac_obj, pystac.Item):
-        return _load_embedding_item(
+        datacube = _load_embedding_item(
             stac_obj, asset_name, spatial_extent, temporal_extent, False
         )
+        emb_type = stac_obj.properties.get("emb:type")
     elif isinstance(stac_obj, pystac.Collection):
-        return _load_embedding_collection(
+        datacube = _load_embedding_collection(
             url, stac_obj, spatial_extent, temporal_extent, asset_name
         )
-    raise NotImplementedError(
-        f"Loading of a STAC object of type {stac_obj.STAC_OBJECT_TYPE} is not supported"
-    )
+        emb_type = stac_obj.extra_fields.get("emb:type")
+    else:
+        raise NotImplementedError(
+            f"Loading of a STAC object of type {stac_obj.STAC_OBJECT_TYPE} is not supported"
+        )
+    if emb_type is not None:
+        datacube.attrs["emb:type"] = emb_type
+
+    datacube.name = None
+    return datacube

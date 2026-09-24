@@ -1,18 +1,38 @@
 import json
-import shutil
-import zipfile
+import logging
 from datetime import datetime
 from pathlib import Path
+from typing import Any
 from uuid import uuid4
 
+import dask
+import geopandas as gpd
+import numpy as np
+import pandas as pd
+import pyarrow as pa
+import pyarrow.parquet as pq
+import shapely
 import xarray as xr
-from dask.delayed import Delayed, delayed
+import xvec  # xr xvec accessor, do not remove, even if IDE says we dont need it
 from openeo_processes_dask.process_implementations.exceptions import DimensionMissing
+from pyproj import CRS
 
 from openeo_processes_dask_ml.process_implementations.constants import (
     OPENEO_RESULTS_PATH,
 )
 from openeo_processes_dask_ml.process_implementations.utils import dim_utils, zip_utils
+
+_TYPE_NAMES = {
+    0: "Point",
+    1: "LineString",
+    2: "Polygon",
+    3: "MultiPoint",
+    4: "MultiLineString",
+    5: "MultiPolygon",
+    6: "GeometryCollection",
+}
+
+logger = logging.getLogger(__name__)
 
 
 def _get_stac_item_template(_id: str) -> dict:
@@ -59,6 +79,19 @@ def _save_as_zarr(datacube: xr.DataArray, result_dir: Path, zarr_dir: Path) -> P
     return zip_path
 
 
+def _set_stac_spatial_metadata(stac_metadata: dict, bbox: list[float]):
+    """
+    Sets spatial metadata of the STAC Item: bbox and geometry.
+    :param stac_metadata: dict of the STAC Item
+    :param bbox: list of four floats, [xmin, ymin, xmax, ymax]
+    """
+    if len(bbox) != 4:
+        raise ValueError("Length of bbox must be exactly 4: [xmin, ymin, xmax, ymax]")
+    bbox_polygon = json.loads(shapely.to_geojson(shapely.box(*bbox)))
+    stac_metadata["bbox"] = bbox
+    stac_metadata["geometry"] = bbox_polygon
+
+
 def _set_stac_spatial_metadata_raster(stac_metadata: dict, datacube: xr.DataArray):
     x_dim, y_dim = dim_utils.get_spatial_dim_names(datacube)
 
@@ -68,20 +101,7 @@ def _set_stac_spatial_metadata_raster(stac_metadata: dict, datacube: xr.DataArra
     xmax = float(max(datacube.coords[x_dim].data))
     ymax = float(max(datacube.coords[y_dim].data))
     bbox = [xmin, ymin, xmax, ymax]
-
-    geom = {
-        "type": "Polygon",
-        "coordinates": [
-            [xmin, ymin],
-            [xmax, ymin],
-            [xmax, ymax],
-            [xmin, ymax],
-            [xmin, ymin],
-        ],
-    }
-
-    stac_metadata["bbox"] = bbox
-    stac_metadata["geometry"] = geom
+    _set_stac_spatial_metadata(stac_metadata, bbox)
 
 
 def _set_stac_time_metadata(stac_metadata: dict, datacube: xr.DataArray):
@@ -105,7 +125,24 @@ def _set_stac_time_metadata(stac_metadata: dict, datacube: xr.DataArray):
 
 def _set_stac_embedding_metadata(stac_metadata: dict, datacube: xr.DataArray):
     emb_dim = dim_utils.get_embedding_dim_name(datacube)
-    stac_metadata["properties"]["emb:type"] = "patch"
+    emb_type = datacube.attrs.get("emb:type")
+    if emb_type is None:
+        patch_dim_options = ["patch", "patch_x", "patch_y"]
+        if any(x in patch_dim_options for x in datacube.dims):
+            emb_type = "patch"
+
+        elif dim_utils.is_vector_datacube(datacube):
+            emb_type = "chip"
+
+        elif dim_utils.is_raster_datacube(datacube):
+            # TODO: distinguish between chip and pixel embs
+            emb_type = "chip"
+
+        else:
+            emb_type = "UNKNOWN"
+            logger.warning("Cannot reliably determine embedding type")
+
+    stac_metadata["properties"]["emb:type"] = emb_type
     stac_metadata["properties"]["emb:dimensions"] = len(datacube.coords[emb_dim].data)
     stac_metadata["properties"]["data_type"] = str(datacube.dtype)
 
@@ -131,12 +168,220 @@ def _update_stac_metadata_raster_cube(
     _set_stac_embedding_metadata_raster(stac_metadata, datacube)
 
 
-def _save_as_parquet(datacube: xr.DataArray, path: Path) -> bool:
-    raise NotImplementedError("Saving of irregular embedding grids not implemented")
+def _set_stac_spatial_metadata_vector(stac_metadata: dict, datacube: xr.DataArray):
+    geom_dim = dim_utils.get_geometry_dim_name(datacube)
+
+    crs = datacube[geom_dim].attrs.get("crs")
+    to_crs = "EPSG:4326"
+    geoms = gpd.GeoSeries(datacube.coords[geom_dim].values, crs=crs).to_crs(to_crs)
+
+    bbox = geoms.total_bounds.tolist()
+    _set_stac_spatial_metadata(stac_metadata, bbox)
+
+
+def _set_stac_embedding_metadata_vector(stac_metadata: dict, datacube: xr.DataArray):
+    _set_stac_embedding_metadata(stac_metadata, datacube)
+    stac_metadata["properties"]["emb:chip_layout"]["layout_type"] = "variable_grid"
 
 
 def _update_stac_metadata_vector_cube(stac_metadata: dict, datacube: xr.DataArray):
-    pass
+    _set_stac_spatial_metadata_vector(stac_metadata, datacube)
+    _set_stac_time_metadata(stac_metadata, datacube)
+    _set_stac_embedding_metadata_vector(stac_metadata, datacube)
+    return stac_metadata
+
+
+def _set_stac_embedding_asset_metadata_vector(
+    stac_metadata: dict, out_path: Path
+) -> dict:
+    stac_metadata["assets"]["embeddings"]["href"] = str(out_path.absolute())
+    stac_metadata["assets"]["embeddings"]["type"] = "application/vnd.apache.parquet"
+    return stac_metadata
+
+
+# ----------------------------------------------------
+
+
+def _get_crs(da: xr.DataArray, geom_dim: str) -> Any:
+    try:
+        crs = da.xvec.crs
+        return crs.get(geom_dim) if isinstance(crs, dict) else crs
+    except Exception:
+        return da[geom_dim].attrs.get("crs")
+
+
+def _column_labels(
+    da: xr.DataArray, time_dim: str | None, time_fmt: str | None
+) -> list[str]:
+    if time_dim not in da.dims:
+        return ["embedding"]
+    if time_dim in da.dims and len(da.coords[time_dim].values) == 1:
+        return ["embedding"]
+    labels = []
+    for t in da[time_dim].values:  # coords are always eager
+        ts = pd.Timestamp(t)
+        labels.append(
+            f"embedding_{ts.strftime(time_fmt) if time_fmt else ts.isoformat()}"
+        )
+    if len(set(labels)) != len(labels):
+        raise ValueError("Duplicate embedding column names — use a finer `time_fmt`.")
+    return labels
+
+
+def _geometry_types(geoms: np.ndarray) -> list[str]:
+    ids = shapely.get_type_id(geoms)
+    zs = shapely.has_z(geoms).astype(np.int8)
+    combos = np.unique(np.stack([ids, zs], axis=1), axis=0)
+    out = set()
+    for tid, z in combos:
+        name = _TYPE_NAMES.get(int(tid))
+        if name:
+            out.add(f"{name} Z" if z else name)
+    return sorted(out)
+
+
+def _geo_metadata(geoms: np.ndarray, crs: Any, column: str = "geometry") -> dict:
+    """GeoParquet 1.1 file metadata."""
+    xmin, ymin, xmax, ymax = shapely.total_bounds(geoms)
+    col = {
+        "encoding": "WKB",
+        "geometry_types": _geometry_types(geoms),
+        "bbox": [float(xmin), float(ymin), float(xmax), float(ymax)],
+        "crs": CRS.from_user_input(crs).to_json_dict() if crs is not None else None,
+    }
+    return {"version": "1.1.0", "primary_column": column, "columns": {column: col}}
+
+
+def _build_schema(
+    columns: list[str], value_type: pa.DataType, n_emb: int, geo_meta: dict
+) -> pa.Schema:
+    fields = [pa.field("geometry", pa.binary())]
+    fields += [pa.field(c, pa.list_(value_type, n_emb)) for c in columns]
+    # NOTE: no b"pandas" key -> nothing to misparse on read
+    return pa.schema(fields, metadata={b"geo": json.dumps(geo_meta).encode()})
+
+
+def _fsl(block: np.ndarray) -> pa.FixedSizeListArray:
+    """(n, k) ndarray -> FixedSizeListArray, no copy of the values."""
+    block = np.ascontiguousarray(np.asarray(block))
+    n, k = block.shape
+    return pa.FixedSizeListArray.from_arrays(pa.array(block.reshape(-1)), k)
+
+
+def _blocks_to_table(
+    blocks: list[np.ndarray], geoms: np.ndarray, schema: pa.Schema
+) -> pa.Table:
+    """Runs inside a dask task: geometry chunk + one block per time slice."""
+    wkb = shapely.to_wkb(np.asarray(geoms, dtype=object), flavor="iso")
+    arrays = [pa.array(wkb, type=pa.binary())] + [_fsl(b) for b in blocks]
+    return pa.Table.from_arrays(arrays, schema=schema)
+
+
+def _write_vector_cube_parquet(
+    da: xr.DataArray,
+    path: Path,
+    geom_dim: str = "geometry",
+    emb_dim: str = "embedding",
+    time_dim: str | None = "time",
+    time_fmt: str | None = None,
+    compression: str = "zstd",
+    compression_level: int | None = None,
+    row_group_size: int | None = None,
+    partitioned: bool = False,  # True -> one file per geometry chunk (parallel)
+) -> Path | list:
+    for dim in (geom_dim, emb_dim):
+        if dim not in da.dims:
+            raise ValueError(f"Missing required dimension {dim!r}; dims={da.dims}")
+    extra = set(da.dims) - {geom_dim, emb_dim, time_dim}
+    if extra:
+        raise ValueError(f"Unexpected extra dimension(s): {sorted(extra)}")
+
+    has_time = time_dim is not None and time_dim in da.dims  # <- fixed
+    order = (geom_dim, time_dim, emb_dim) if has_time else (geom_dim, emb_dim)
+    da = da.transpose(*order)
+
+    if len(da.chunks[da.get_axis_num(emb_dim)]) > 1:
+        da = da.chunk({emb_dim: -1})
+
+    geoms = np.asarray(da[geom_dim].values, dtype=object)
+    crs = _get_crs(da, geom_dim)
+    columns = _column_labels(da, time_dim, time_fmt)
+
+    schema = _build_schema(
+        columns,
+        pa.from_numpy_dtype(da.dtype),
+        da.sizes[emb_dim],
+        _geo_metadata(geoms, crs),
+    )
+
+    if has_time:
+        per_column = [
+            da.isel({time_dim: i}).data.to_delayed().ravel()
+            for i in range(da.sizes[time_dim])
+        ]
+    else:
+        per_column = [da.data.to_delayed().ravel()]
+
+    sizes = da.chunks[0]
+    offsets = np.cumsum((0,) + tuple(sizes))
+
+    # ---- one file per chunk: fully parallel -------------------------------
+    if partitioned:
+        out = Path(path)
+        out.mkdir(parents=True, exist_ok=True)
+
+        @dask.delayed
+        def _write_part(
+            blocks: list[np.ndarray], part_geoms: np.ndarray, dest: str
+        ) -> str:
+            pq.write_table(
+                _blocks_to_table(blocks, part_geoms, schema),
+                dest,
+                compression=compression,
+                compression_level=compression_level,
+            )
+            return dest
+
+        tasks = [
+            _write_part(
+                [col[j] for col in per_column],
+                geoms[offsets[j] : offsets[j + 1]],
+                str(out / f"part.{j:05d}.parquet"),
+            )
+            for j in range(len(sizes))
+        ]
+        return list(dask.compute(*tasks))
+
+    # ---- single file: sequential, bounded memory ---------------------------
+    Path(path).parent.mkdir(parents=True, exist_ok=True)
+    with pq.ParquetWriter(
+        path,
+        schema,
+        compression=compression,
+        compression_level=compression_level,
+    ) as writer:
+        for j in range(len(sizes)):
+            blocks = dask.compute(*[col[j] for col in per_column])
+            table = _blocks_to_table(blocks, geoms[offsets[j] : offsets[j + 1]], schema)
+            writer.write_table(table, row_group_size=row_group_size)
+    return path
+
+
+def _save_as_parquet(datacube: xr.DataArray, path: Path) -> bool:
+    geometry_dim = dim_utils.get_geometry_dim_name(datacube)
+    emb_dim_name = dim_utils.get_embedding_dim_name(datacube)
+
+    try:
+        time_dim_name = dim_utils.get_time_dim_name(datacube)
+    except DimensionMissing:
+        time_dim_name = None
+
+    try:
+        _write_vector_cube_parquet(
+            datacube, path, geometry_dim, emb_dim_name, time_dim_name, partitioned=False
+        )
+    except Exception as e:
+        raise Exception("Failed writing Geoparquet.")
 
 
 def _save_metadata_file(stac_metadata: dict, metadata_path: Path) -> bool:
@@ -161,25 +406,39 @@ def save_embeddings(data: xr.DataArray) -> bool:
 
     _id = str(uuid4())
     result_dir = Path(OPENEO_RESULTS_PATH) / _id
-    zarr_out_path = result_dir / "result.zarr"
     metadata_path = result_dir / "result.json"
 
     stac_metadata = _get_stac_item_template(_id)
 
-    spatial_dims = dim_utils.get_spatial_dim_names(data)
-    if len(spatial_dims) == 2:
+    data_saved = False
+
+    if dim_utils.is_raster_datacube(data):
         # this implies embeddings in a regular raster -> save as zarr
+        zarr_out_path = result_dir / "result.zarr"
         data.name = "embeddings"
         _update_stac_metadata_raster_cube(stac_metadata, data, result_dir)
         zipped_zarr_path = _save_as_zarr(data, result_dir, zarr_out_path)
         stac_metadata = _set_stac_embedding_asset_metadata_raster(
             stac_metadata, zipped_zarr_path
         )
+        data_saved = True
 
-    if "geometry" in data.dims or "geom" in data.dims:
-        # this implieds embeddings in irregular raster -> save as geo-parquet
+    if dim_utils.is_vector_datacube(data):
+        # this implies embeddings in irregular raster -> save as geo-parquet
+        parquet_out_path = result_dir / "result.geoparquet"
         _update_stac_metadata_vector_cube(stac_metadata, data)
-        _save_as_parquet(data, result_dir)
+        _save_as_parquet(data, parquet_out_path)
+        stac_metadata = _set_stac_embedding_asset_metadata_vector(
+            stac_metadata, parquet_out_path
+        )
+        data_saved = True
+
+    if not data_saved:
+        raise Exception(
+            "Could not save embedding because datacube is of unknown type. Must be "
+            "either a raster datacube (x and y dimensions) or a vector datacube "
+            "geometry dimension"
+        )
 
     saved = _save_metadata_file(stac_metadata, metadata_path)
     return saved

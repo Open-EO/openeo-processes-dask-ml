@@ -1,4 +1,5 @@
 import copy
+import logging
 import math
 import pickle
 import random
@@ -14,8 +15,15 @@ from dask import array as da
 from dask import dataframe as ddf
 from dask import delayed
 from pystac.extensions.classification import Classification
-from sklearn.ensemble import RandomForestClassifier
-from sklearn.metrics import accuracy_score, classification_report, cohen_kappa_score
+from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor
+from sklearn.metrics import (
+    accuracy_score,
+    classification_report,
+    cohen_kappa_score,
+    mean_absolute_error,
+    r2_score,
+    root_mean_squared_error,
+)
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import LabelEncoder
 
@@ -23,6 +31,8 @@ from openeo_processes_dask_ml.model_execution import run_sklearn_model
 from openeo_processes_dask_ml.process_implementations.constants import MODEL_CACHE_DIR
 
 from .data_model import MLModel
+
+logger = logging.getLogger(__name__)
 
 
 class SkLearnModel(MLModel):
@@ -70,13 +80,6 @@ class SkLearnModel(MLModel):
         return pred.reshape(orig_shape)
 
     def run_model(self, datacube: xr.DataArray) -> xr.DataArray:
-        # !!!!
-        # At the moment only works for models that take in a single dim (e.g. bands)
-        # if len(self.input.input.dim_order) > 1:
-        #     raise NotImplementedError(
-        #         "this model is not supported as it takes more than one dim as input"
-        #     )
-
         if len(self.output.result.dim_order) > 1:
             raise NotImplementedError(
                 "this model is not supported as it outputs more than 1 dimension"
@@ -131,6 +134,34 @@ class SkLearnModel(MLModel):
         result = result.expand_dims(self.output.result.dim_order[0])
 
         return result
+
+    def fit_model(self, training_set: xr.DataArray) -> Self:
+        training_set = training_set.chunk(-1).persist()
+        out_dims = self.output.result.dim_order
+        if len(out_dims) > 1:
+            raise ValueError("Only one output dimension is allowed in RF classifier")
+
+        dim_mapping = self.get_datacube_dimension_mapping(training_set)
+        dims = [d[0] for d in dim_mapping]
+
+        stacked = training_set.stack(feature=dims)
+
+        # I pitty anyone who at one point will have to debug this line...
+        new_cols = [
+            "_".join(str(v) for v in vals)
+            for vals in zip(*[stacked.coords[d].values for d in dims])
+        ]
+        stacked = stacked.drop_vars(["feature", *dims]).assign_coords(feature=new_cols)
+
+        training_set_ds = stacked.to_dataset(dim="feature")
+        training_set_df = training_set_ds.to_dask_dataframe().reset_index(drop=True)
+
+        fitted_model_path = self.fit(training_set_df, new_cols)
+
+        rf_model_copy = copy.deepcopy(self)
+        rf_model_copy._model_filepath = fitted_model_path
+
+        return rf_model_copy
 
 
 class RfClassModel(SkLearnModel):
@@ -200,39 +231,61 @@ class RfClassModel(SkLearnModel):
             ),  # start range at 1 and end at 1 more due to encodeed labels starting at 1
             target_names=encoder.classes_,
         )
-        print("Classification Report: \n")
-        print(report)
-        print()
-        print(f"Overall Accuracy: {accuracy_score(y_val, y_pred)}")
-        print()
-        print(f"Cohens Kappa: {cohen_kappa_score(y_val, y_pred)}")
+        logger.info("Classification Report: \n")
+        logger.info(report)
+        logger.info(f"Overall Accuracy: {accuracy_score(y_val, y_pred)}")
+        logger.info(f"Cohens Kappa: {cohen_kappa_score(y_val, y_pred)}")
 
         return model_path
 
-    def fit_model(self, training_set: xr.DataArray) -> Self:
-        training_set = training_set.chunk(-1).persist()
-        out_dims = self.output.result.dim_order
-        if len(out_dims) > 1:
-            raise ValueError("Only one output dimension is allowed in RF classifier")
 
-        dim_mapping = self.get_datacube_dimension_mapping(training_set)
-        dims = [d[0] for d in dim_mapping]
+class RfRegrModel(SkLearnModel):
+    @staticmethod
+    def init_model(
+        max_features: int | str | float | None,
+        n_trees: int,
+        model_id: str,
+        seed: int = None,
+    ):
+        r = RandomForestRegressor(n_trees, max_features=max_features, random_state=seed)
 
-        stacked = training_set.stack(feature=dims)
+        # save model to disk
+        modelpath = MODEL_CACHE_DIR + "/" + model_id + ".pkl"
+        with open(modelpath, "wb") as file:
+            pickle.dump(r, file)
 
-        # I pitty anyone who at one point will have to debug this line...
-        new_cols = [
-            "_".join(str(v) for v in vals)
-            for vals in zip(*[stacked.coords[d].values for d in dims])
-        ]
-        stacked = stacked.drop_vars(["feature", *dims]).assign_coords(feature=new_cols)
+        return modelpath
 
-        training_set_ds = stacked.to_dataset(dim="feature")
-        training_set_df = training_set_ds.to_dask_dataframe().reset_index(drop=True)
+    @delayed
+    def fit(self, training_set_df: ddf.DataFrame, pred_col_names: list[str]) -> str:
+        random.seed(self.seed)
+        np.random.seed(self.seed)
 
-        fitted_model_path = self.fit(training_set_df, new_cols)
+        model_path = self._model_filepath
 
-        rf_model_copy = copy.deepcopy(self)
-        rf_model_copy._model_filepath = fitted_model_path
+        with open(model_path, "rb") as file:
+            model: RandomForestClassifier = pickle.load(file)
 
-        return rf_model_copy
+        out_col_name = self.output.result.dim_order[0]
+
+        X = training_set_df[pred_col_names]
+        y = training_set_df[out_col_name]
+
+        X_train, X_val, y_train, y_val = train_test_split(
+            X, y, test_size=0.15, random_state=self.seed
+        )
+
+        # Here we finally fit the model!!!
+        model.fit(X_train.values, y_train)
+
+        with open(model_path, "wb") as file:
+            pickle.dump(model, file)
+
+        y_pred = model.predict(X_val)
+
+        logger.info("Regression Result: ")
+        logger.info(f"R2-Score: {r2_score(y_val, y_pred)}")
+        logger.info(f"RMSE: : {root_mean_squared_error(y_val, y_pred)}")
+        logger.info(f"MAE: {mean_absolute_error(y_val, y_pred)}")
+
+        return model_path

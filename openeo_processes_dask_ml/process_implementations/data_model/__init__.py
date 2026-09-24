@@ -6,6 +6,6 @@ except ImportError:
     pass
 
 try:
-    from .scikit_learn_model import RfClassModel
+    from .scikit_learn_model import RfClassModel, RfRegrModel
 except ImportError:
     pass
