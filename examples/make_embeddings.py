@@ -83,7 +83,7 @@ if __name__ == "__main__":
 
     parser.add_argument(
         "--uri",
-        default="./examples/mlm_items/terramind_item.json",
+        default="https://raw.githubusercontent.com/Open-EO/openeo-processes-dask-ml/refs/heads/main/examples/mlm_items/terramind_item.json",
         type=str,
         help="URI to the STAC-MLM file that catalogs the ML model to apply to the datacube.",
     )

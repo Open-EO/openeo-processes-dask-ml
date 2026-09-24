@@ -34,7 +34,7 @@
     "load_model": {
       "process_id": "load_stac_ml",
       "arguments": {
-        "uri": "./examples/mlm_items/terramind_item.json",
+        "uri": "https://raw.githubusercontent.com/Open-EO/openeo-processes-dask-ml/refs/heads/main/examples/mlm_items/terramind_item.json",
         "model_asset": "weights",
         "output_index": 2
       }
