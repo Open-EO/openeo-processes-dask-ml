@@ -206,7 +206,7 @@
     },
     "assets": {
         "weights": {
-            "href": "https://uni-muenster.sciebo.de/s/ZFQTfamiXFBKNJH/download",
+            "href": "https://e2s.s3.eu-de.cloud-object-storage.appdomain.cloud/models/terramind_v1_base_sentinel2_l2a_encoder.pt",
             "title": "Pytorch weights checkpoint",
             "description": "mlm model weights",
             "type": "application/octet-stream; application=pytorch",
