@@ -1,0 +1,64 @@
+{
+  "process_graph": {
+    "load_data": {
+      "process_id": "load_collection",
+      "arguments": {
+        "id": "sentinel-2-l2a",
+        "spatial_extent": {
+          "west": 8.2,
+          "east": 8.5,
+          "south": 48.9,
+          "north": 49.1
+        },
+        "temporal_extent": [
+          "2024-08-05",
+          "2024-08-12"
+        ],
+        "bands": [
+          "coastal",
+          "blue",
+          "green",
+          "red",
+          "rededge1",
+          "rededge2",
+          "rededge3",
+          "nir",
+          "nir08",
+          "nir09",
+          "swir16",
+          "swir22"
+        ],
+        "resolution": 10
+      }
+    },
+    "load_model": {
+      "process_id": "load_stac_ml",
+      "arguments": {
+        "uri": "./examples/mlm_items/terramind_item.json",
+        "model_asset": "weights",
+        "output_index": 2
+      }
+    },
+    "predict": {
+      "process_id": "ml_predict",
+      "arguments": {
+        "data": {
+          "from_node": "load_data"
+        },
+        "model": {
+          "from_node": "load_model"
+        }
+      }
+    },
+    "save": {
+      "process_id": "save_embeddings",
+      "arguments": {
+        "data": {
+          "from_node": "predict"
+        }
+      },
+      "result": true
+    }
+  },
+  "parameters": []
+}
