@@ -30,6 +30,7 @@ from pystac.extensions.mlm import (
 from openeo_processes_dask_ml.process_implementations.constants import (
     MODEL_CACHE_DIR,
     MODEL_EXECUTION_MODE,
+    OPENEO_RESULTS_PATH,
     TMP_DIR,
 )
 from openeo_processes_dask_ml.process_implementations.exceptions import (
@@ -1298,22 +1299,20 @@ class MLModel(ABC):
 
         out_metadata_filepath = out_model_filepath.with_suffix(".json")
 
+        self._stac_item.assets["weights"].href = out_model_filepath.name
+
         # write stac-mlm file
         pystac.write_file(self._stac_item, False, str(out_metadata_filepath))
 
         return True
 
     def save_model(self, model_name: str) -> bool:
-        MODEL_RESULT_DIR = "./results/"
-        u_id = str(uuid.uuid4())
-        model_output_dir = MODEL_RESULT_DIR + u_id
+        model_output_dir = OPENEO_RESULTS_PATH + "/" + str(uuid.uuid4())
 
         self.model_metadata.mlm_name = model_name
-
         saved = self.save_to_disk(model_name, model_output_dir, self._model_filepath)
 
-        # todo: handle href
-
+        saved = saved.compute()
         return saved
 
     @abstractmethod
