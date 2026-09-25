@@ -8,7 +8,7 @@ tmp
 results
 tests/test_tmp
 models
-embeddings
+/embeddings
 
 __pycache__
 
