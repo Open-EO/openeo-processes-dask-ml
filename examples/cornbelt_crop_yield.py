@@ -34,7 +34,9 @@ process_graph = {
     # 2) datacube for training
     "load_embeddings_train": {
         "process_id": "load_embeddings",
-        "arguments": {"url": "examples/embeddings/terramind_cornbelt_embeddings.json"},
+        "arguments": {
+            "url": "https://raw.githubusercontent.com/Open-EO/openeo-processes-dask-ml/refs/heads/main/examples/embeddings/terramind_cornbelt_embeddings.json"
+        },
     },
     "subset_2020": {
         "process_id": "filter_temporal",
@@ -63,5 +65,4 @@ process_graph = {
 }
 
 out = execute_graph_dict(process_graph)
-out = out.compute()
 print(out)
