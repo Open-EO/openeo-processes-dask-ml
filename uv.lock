@@ -2572,7 +2572,7 @@ implementations = [
 
 [[package]]
 name = "openeo-processes-dask-ml"
-version = "0.0.4"
+version = "0.0.6"
 source = { editable = "." }
 dependencies = [
     { name = "boto3" },
