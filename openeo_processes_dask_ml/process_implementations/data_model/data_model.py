@@ -1314,6 +1314,7 @@ class MLModel(ABC):
 
         # todo: handle href
 
+        saved = saved.compute()
         return saved
 
     @abstractmethod
