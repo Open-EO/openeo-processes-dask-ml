@@ -1,6 +1,7 @@
+import geopandas as gpd
+import shapely
 import xarray as xr
 from openeo_processes_dask.process_implementations.exceptions import DimensionMissing
-from scipy.signal.windows import triang
 
 from openeo_processes_dask_ml.process_implementations.data_model import MLModel
 
@@ -87,7 +88,16 @@ def ml_fit(model: MLModel, training_set: xr.DataArray, target: str):
     # model is not fitted, so we can adjust the pretraind parameter
     fitted_model.model_metadata.pretrained = True
 
-    # todo: update eo:bands in asset metadata
-    # todo: uddate bbox and datetime (start-end) with values from training-set
+    # update bbox and spatial metadata
+    training_data_crs = training_set.xvec.geom_coords_indexed["geometry"].crs
+    bbox = (
+        gpd.GeoSeries(training_set.coords["geometry"].values, crs=training_data_crs)
+        .to_crs("EPSG:4326")
+        .total_bounds.tolist()
+    )
+    fitted_model._stac_item.bbox = bbox
+    fitted_model._stac_item.geometry = shapely.geometry.mapping(shapely.box(*bbox))
+
+    # todo: update eo:bands in asset metadata if bands in input-dimensions
 
     return fitted_model
