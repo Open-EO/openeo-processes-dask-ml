@@ -43,12 +43,6 @@ logger.setLevel(logging.INFO)  # Ensure root logger passes all levels to handler
 logger.addHandler(stdout_handler)
 logger.addHandler(stderr_handler)
 
-logging.debug("This goes to STDOUT")
-logging.info("This goes to STDOUT")
-logging.warning("This goes to STDERR")
-logging.error("This goes to STDERR")
-logging.critical("This goes to STDERR")
-
 
 def execute_graph_file(path: str):
     parsed_graph = OpenEOProcessGraph.from_file(path)
