@@ -14,6 +14,7 @@ import geopandas as gpd
 import numpy as np
 import pandas as pd
 import pyarrow
+import pyarrow.compute as pc
 import pyarrow.parquet as pq
 import pyproj
 import pystac
@@ -39,6 +40,9 @@ from openeo_processes_dask_ml.process_implementations.utils import (
     stac_utils,
     zarr_utils,
     zip_utils,
+)
+from openeo_processes_dask_ml.process_implementations.utils.geometry_spatial_hash import (
+    GeometrySpatialHash,
 )
 
 logger = logging.getLogger(__name__)
@@ -737,16 +741,18 @@ def _construct_embedding_vector_cube(
     geom_coords: list[shapely.Geometry],
     time_coords: list[Datetime],
 ) -> xr.DataArray:
-    single_temp_cubes = []
-    for single_timestep_arrays in item_arrays:
-        x = xr.concat(single_timestep_arrays, dim="geometry")
-        single_temp_cubes.append(x)
+    # 1. Combine nested lists into a single block (defaults to time, geometry, ...)
+    embedding_cube = xr.combine_nested(item_arrays, concat_dim=["time", "geometry"])
 
-    embedding_cube = xr.concat(single_temp_cubes, dim="time")
+    # 2. Transpose the dimensions to match the original expected shape.
+    embedding_cube = embedding_cube.transpose("time", "geometry", ...)
+
+    # 3. Assign coordinates and indexes
     embedding_cube = embedding_cube.assign_coords(
         {"geometry": geom_coords, "time": time_coords}
     )
     embedding_cube = embedding_cube.xvec.set_geom_indexes("geometry", crs="EPSG:4326")
+
     return embedding_cube
 
 
@@ -871,8 +877,7 @@ def _load_embedding_collection_parquet(
     to_epsg_4326 = _proj_necessary(collection, items, asset_name)
 
     # Parallelized execution using a ThreadPoolExecutor
-    print("process_items")
-    MAX_THREADS = 8  # Change this to your desired number of threads
+    MAX_THREADS = 8
     with ThreadPoolExecutor(max_workers=MAX_THREADS) as executor:
         per_item_cubes = list(
             executor.map(
@@ -880,58 +885,59 @@ def _load_embedding_collection_parquet(
             )
         )
 
-    print("combine results")
+    # Step A: Collect all unique coordinates FIRST to avoid dynamic resizing
+    time_set = set()
+    geom_index = GeometrySpatialHash(tolerance=0.00001)
 
-    # match and order embeddings by space and time
-    # assumes that each time-geometry pair only oocurs once
-    # later occurances will overwrite earlier ones
-    item_arrays: list[list[xr.DataArray]] = []
-    time_coords: list[Datetime] = []
-    geom_coords: list[shapely.geometry.base.BaseGeometry] = []
+    # Store processed metadata so we don't have to extract times/geometries twice
+    cube_metadata = []
+
+    per_item_cubes = [cube.persist() for cube in per_item_cubes]
 
     for item, item_cube in zip(items, per_item_cubes):
+        # 1. Resolve Times
         # time coordinates of this item cube; fall back to the item datetime
         # if the cube carries no explicit time coordinate
-        print(item.id)
         if "time" in item_cube.coords:
             cube_times = [_to_datetime(t) for t in item_cube.coords["time"].values]
         else:
             cube_times = item_cube.sizes["time"] * [_get_item_time(item)]
 
+        time_set.update(cube_times)
+
+        # 2. Resolve Geometries
+        # Map local geometry indexes to global geometry indexes
+        geom_global_indices = [
+            geom_index.get_or_add(geom) for geom in item_cube.coords["geometry"].values
+        ]
+
+        cube_metadata.append((cube_times, geom_global_indices, item_cube))
+
+    # Create ordered coordinate lists
+    time_coords = sorted(list(time_set))
+    time_to_idx = {t: i for i, t in enumerate(time_coords)}
+    geom_coords = geom_index.geometries
+
+    # Step B: Pre-allocate the full 2D grid exactly once
+    N_times, N_geoms = len(time_coords), len(geom_coords)
+    item_arrays = [[xr.DataArray() for _ in range(N_geoms)] for _ in range(N_times)]
+
+    # Step C: Fill the grid directly using calculated indices
+    for cube_times, geom_global_indices, item_cube in cube_metadata:
         for dc_time_idx, dc_time in enumerate(cube_times):
-            if dc_time not in time_coords:
-                time_coords.append(dc_time)
-                time_index = len(time_coords) - 1
-                # new time row, empty for all geometries known so far
-                item_arrays.append(len(geom_coords) * [xr.DataArray()])
-            else:
-                time_index = time_coords.index(dc_time)
+            t_idx = time_to_idx[dc_time]
 
-            for dc_geom_coord_idx, dc_geom_coord in enumerate(
-                item_cube.coords["geometry"].values
-            ):
-                geom_idx = _match_geom_in_list(geom_coords, dc_geom_coord, 0.00001)
-                if geom_idx is None:
-                    geom_coords.append(dc_geom_coord)
-                    geom_idx = len(geom_coords) - 1
-                    # new geometry column, empty for all times known so far
-                    for time_step in item_arrays:
-                        time_step.append(xr.DataArray())
-
+            for dc_geom_coord_idx, g_idx in enumerate(geom_global_indices):
                 emb = item_cube.isel(
                     time=dc_time_idx, geometry=dc_geom_coord_idx, drop=True
                 )
-                item_arrays[time_index][geom_idx] = emb
+                item_arrays[t_idx][g_idx] = emb
 
-    # keep a deterministic (chronological) time order
-    order = sorted(range(len(time_coords)), key=lambda i: time_coords[i])
-    time_coords = [time_coords[i] for i in order]
-    item_arrays = [item_arrays[i] for i in order]
-
-    # combine the small individual embedding cubes
+    # Combine the small individual embedding cubes
     embedding_cube = _construct_embedding_vector_cube(
         item_arrays, geom_coords, time_coords
     )
+
     return embedding_cube
 
 
