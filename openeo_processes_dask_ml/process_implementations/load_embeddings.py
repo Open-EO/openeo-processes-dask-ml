@@ -13,7 +13,7 @@ import fsspec
 import geopandas as gpd
 import numpy as np
 import pandas as pd
-import pyarrow
+import pyarrow as pa
 import pyarrow.compute as pc
 import pyarrow.parquet as pq
 import pyproj
@@ -510,7 +510,7 @@ def _prepare_geoparquet(
     return geoms_array, embedding_array
 
 
-def _get_parquet_embedding_column_names(parquet_schema: pyarrow.Schema) -> list[str]:
+def _get_parquet_embedding_column_names(parquet_schema: pa.Schema) -> list[str]:
     # check geom column
     # check embedding column (embedding or embeddings?)
     # check if col is correct dtype (list? what float?)
@@ -537,7 +537,7 @@ def _get_parquet_embedding_column_names(parquet_schema: pyarrow.Schema) -> list[
         # Use .type to get the actual DataType from the pyarrow Field
         emb_col_dtype = parquet_schema.field(col_name).type
 
-        if isinstance(emb_col_dtype, pyarrow.FixedSizeListType):
+        if isinstance(emb_col_dtype, pa.FixedSizeListType):
             try:
                 current_shape, current_dtype = _get_parquet_embedding_shape_and_dtype(
                     emb_col_dtype
@@ -569,7 +569,7 @@ def _get_parquet_embedding_column_names(parquet_schema: pyarrow.Schema) -> list[
 
 
 def _get_parquet_embedding_shape_and_dtype(
-    column_type: pyarrow.DataType,
+    column_type: pa.DataType,
 ) -> tuple[tuple[int, ...], np.typing.DTypeLike]:
     """
     Extract (shape, dtype) from a nested PyArrow FixedSizeList type.
@@ -588,12 +588,12 @@ def _get_parquet_embedding_shape_and_dtype(
     shape: list[int] = []
     current = column_type
 
-    while pyarrow.types.is_fixed_size_list(current):
+    while pa.types.is_fixed_size_list(current):
         shape.append(current.list_size)
         current = current.value_type
 
     # Only allow numeric leaf types.
-    if not (pyarrow.types.is_integer(current) or pyarrow.types.is_floating(current)):
+    if not (pa.types.is_integer(current) or pa.types.is_floating(current)):
         raise TypeError(
             f"Expected a numeric type or FixedSizeList at every level, "
             f"but found {current}"
