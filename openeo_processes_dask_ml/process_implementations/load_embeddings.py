@@ -25,6 +25,7 @@ import xarray as xr
 import xvec  # dont remove (even if your IDE says it is unused)
 from dask import array as da
 from dask.delayed import delayed
+from fsspec.core import url_to_fs
 from numpy.typing import NDArray
 from openeo_pg_parser_networkx.pg_schema import BoundingBox, TemporalInterval
 from openeo_processes_dask.process_implementations.cubes._filter import _reproject_bbox
@@ -414,6 +415,81 @@ def _load_tiff(path: str) -> xr.DataArray:
     return dc
 
 
+def _fixed_size_list_to_numpy(
+    col: pa.ChunkedArray | pa.Array, emb_shape: tuple[int, ...], dtype
+) -> np.ndarray:
+    """(Nested) FixedSizeList column -> ndarray of shape (n_rows, *emb_shape), near zero-copy."""
+    arr = col.combine_chunks() if isinstance(col, pa.ChunkedArray) else col
+    n_rows = len(arr)
+    for _ in emb_shape:  # peel off one FixedSizeList level per embedding dimension
+        if arr.null_count:
+            # flatten() silently drops null lists -> reshape would fail cryptically
+            raise ValueError("Null embeddings are not supported.")
+        arr = arr.flatten()  # respects slice offsets
+    return (
+        arr.to_numpy(zero_copy_only=False)
+        .reshape(n_rows, *emb_shape)
+        .astype(dtype, copy=False)
+    )
+
+
+def _geoparquet_file_crs(col_meta: dict) -> pyproj.CRS:
+    """CRS of a GeoParquet geometry column according to the GeoParquet spec."""
+    if "crs" not in col_meta:  # absent -> OGC:CRS84 by spec
+        return pyproj.CRS.from_user_input("OGC:CRS84")
+    crs = col_meta["crs"]
+    if crs is None:  # explicit null -> undefined CRS
+        raise ValueError("GeoParquet geometry column has an undefined CRS.")
+    if isinstance(crs, dict):  # PROJJSON
+        return pyproj.CRS.from_json_dict(crs)
+    return pyproj.CRS.from_user_input(crs)
+
+
+def _bbox_polygon_in_crs(
+    bbox: BoundingBox, target_crs: pyproj.CRS, densify: bool = True
+) -> shapely.Polygon:
+    """
+    Reproject the bbox *polygon* into target_crs.
+    The result is the true (possibly rotated/curved) footprint, not its envelope.
+    """
+    src_crs = pyproj.CRS.from_user_input(bbox.crs if bbox.crs is not None else 4326)
+    poly = shapely.box(bbox.west, bbox.south, bbox.east, bbox.north)
+
+    if src_crs.equals(target_crs, ignore_axis_order=True):
+        return poly
+
+    if densify:
+        # add vertices along the edges so curvature in the target CRS is captured
+        max_seg = max(bbox.east - bbox.west, bbox.north - bbox.south) / 20
+        if max_seg > 0:
+            poly = shapely.segmentize(poly, max_seg)
+
+    transformer = pyproj.Transformer.from_crs(src_crs, target_crs, always_xy=True)
+    return shapely.transform(poly, transformer.transform, interleaved=False)
+
+
+def _covering_bbox_filter(
+    col_meta: dict, xmin: float, ymin: float, xmax: float, ymax: float
+) -> pc.Expression | None:
+    """
+    Build a pyarrow filter on the GeoParquet 1.1 bbox covering column, if present.
+    This lets pyarrow skip entire row groups via column statistics.
+    """
+    covering = col_meta.get("covering", {}).get("bbox")
+    if not covering:
+        return None
+
+    def field(key: str) -> pc.Expression:
+        return pc.field(*covering[key])  # e.g. ["bbox", "xmin"] -> nested field ref
+
+    return (
+        (field("xmin") <= xmax)
+        & (field("xmax") >= xmin)
+        & (field("ymin") <= ymax)
+        & (field("ymax") >= ymin)
+    )
+
+
 def _prepare_geoparquet(
     path: str,
     bbox: BoundingBox | None,
@@ -423,91 +499,70 @@ def _prepare_geoparquet(
     emb_dtype: np.dtype,
     to_epsg_4326: bool = False,
 ) -> tuple[NDArray[shapely.Geometry], da.Array]:
-    @delayed
-    def _stack_partition(
-        df: pd.DataFrame,
-        columns: Sequence[str],
-        emb_shape: tuple[int, ...],
-        dtype: np.typing.DTypeLike,
-    ) -> np.typing.NDArray[np.generic]:
-        """
-        df      : pandas DataFrame partition containing `columns`
-        returns : np.ndarray of shape (n_cols, n_rows, emb_size)
-        """
+    fs, fpath = url_to_fs(path)  # works for local paths, s3://, https://, ...
 
-        def deep_stack(arr: np.ndarray) -> np.ndarray:
-            if arr.dtype == object:
-                return np.stack([deep_stack(x) for x in arr])
-            return arr
+    # --- metadata -------------------------------------------------------------
+    schema = pq.read_schema(fpath, filesystem=fs)
+    geo_meta = json.loads(schema.metadata[b"geo"])
+    col_meta = geo_meta["columns"][geom_column_name]
 
-        n_rows = len(df)
-        n_cols = len(columns)
+    encoding = col_meta.get("encoding", "WKB")
+    if encoding.upper() != "WKB":
+        raise NotImplementedError(
+            f"GeoParquet geometry encoding '{encoding}' is not supported (only WKB)."
+        )
+    file_crs = _geoparquet_file_crs(col_meta)
 
-        # empty partitions would break np.stack -> correctly shaped empty block
-        if n_rows == 0:
-            return np.empty((n_cols, 0, *emb_shape), dtype=dtype)
+    # --- bbox in the file's CRS --------------------------------------------
+    bbox_geom = None
+    filters = None
+    if bbox is not None:
+        bbox_geom = _bbox_polygon_in_crs(bbox, file_crs)  # exact footprint
+        xmin, ymin, xmax, ymax = bbox_geom.bounds  # envelope: coarse filter only
+        filters = _covering_bbox_filter(col_meta, xmin, ymin, xmax, ymax)
 
-        # convert nested 1D numpy array of array objects into a proper n-D numpy array
-        per_col = []
-        for c in columns:
-            matrix = deep_stack(df[c].values)
-            per_col.append(matrix)
-
-        # ... stacked along a new leading "column" axis -> (n_cols, n_rows, emb_size)
-        out = np.stack(per_col, axis=0)
-        return out.astype(dtype, copy=False)
-
-    gdf: dask_geopandas.GeoDataFrame = dask_geopandas.read_parquet(
-        path, columns=[geom_column_name, *embedding_col_names]
+    # --- single read: only the required columns, row groups pruned if possible
+    table = pq.read_table(
+        fpath,
+        filesystem=fs,
+        columns=[geom_column_name, *embedding_col_names],
+        filters=filters,
     )
 
-    if bbox is not None:
-        if bbox.crs != "EPSG:4326":
-            bbox = _reproject_bbox(bbox, "EPSG:4326")
+    # --- geometries: vectorised WKB decoding ----------------------------------
+    geoms = shapely.from_wkb(
+        table.column(geom_column_name).to_numpy(zero_copy_only=False)
+    )
 
-        xmin, ymin, xmax, ymax = (
-            bbox.west,
-            bbox.south,
-            bbox.east,
-            bbox.north,
-        )
-        bbox_geom = shapely.box(xmin, ymin, xmax, ymax)
-        gdf_bbox = gpd.GeoDataFrame(geometry=[bbox_geom], crs="EPSG:4326")
-        gdf_bbox = gdf_bbox.to_crs(gdf.crs)
-        gdf = dask_geopandas.sjoin(gdf, gdf_bbox, how="inner", predicate="intersects")
+    # --- exact spatial refinement (same semantics as sjoin "intersects") ---
+    if bbox_geom is not None:
+        shapely.prepare(bbox_geom)
+        mask = shapely.intersects(bbox_geom, geoms)
+        if not mask.all():
+            table = table.filter(pa.array(mask))
+            geoms = geoms[mask]
 
-    if to_epsg_4326:
-        gdf = gdf.to_crs(epsg=4326)
+    # --- reprojection: vectorised via pyproj, no GeoDataFrame needed ----------
+    if to_epsg_4326 and not file_crs.equals(
+        pyproj.CRS.from_epsg(4326), ignore_axis_order=True
+    ):
+        transformer = pyproj.Transformer.from_crs(file_crs, "EPSG:4326", always_xy=True)
+        geoms = shapely.transform(geoms, transformer.transform, interleaved=False)
 
-    # this does the trick of stacking the arrays, but is VERY slow
-    # dask checks if the arrays are of same length and can be stacked -> SLOW
-    # embedding_array = da.stack(gdf_embeddings[emb_column_name])
+    geoms = shapely.normalize(geoms)
 
-    # same effect but more efficient: we already KNOW that each array is same length
-    # 1) make one delayed dask object per partition
-    # 2) for each delayed dask object make a delayed (lazy) dask array
-    # 3) concat all lazy dask arrays to one big lazy dask array
-    geom_parts = gdf[
-        geom_column_name
-    ].to_delayed()  # delayed objects, one per partition, for both columns
-    emb_parts = gdf[embedding_col_names].to_delayed()
+    # --- embeddings: Arrow buffers -> numpy, no per-row Python ---------------
+    emb = np.stack(
+        [
+            _fixed_size_list_to_numpy(table.column(c), emb_shape, emb_dtype)
+            for c in embedding_col_names
+        ],
+        axis=0,
+    )  # (n_embedding_cols, n_rows, *emb_shape)
 
-    # compute geometries per partition (you need them as numpy coords anyway).
-    # This ALSO gives us the exact row count of every partition.
-    geoms_by_part = dask.compute(*geom_parts)  # list of pandas Series
-    lengths = [len(g) for g in geoms_by_part]  # known rows per partition
-    geoms_array = np.concatenate([g.normalize().to_numpy() for g in geoms_by_part])
-
-    arrays = [
-        da.from_delayed(
-            _stack_partition(part, embedding_col_names, emb_shape, emb_dtype),
-            shape=(len(embedding_col_names), length, *emb_shape),  # rows are axis 1 now
-            dtype=emb_dtype,
-        )
-        for part, length in zip(emb_parts, lengths)
-    ]
-    embedding_array = da.concatenate(arrays, axis=1)
-    return geoms_array, embedding_array
+    # wrap with sensible chunks: all time-columns together, rows auto-chunked
+    embedding_array = da.from_array(emb, chunks=(-1, "auto", *(-1,) * len(emb_shape)))
+    return geoms, embedding_array
 
 
 def _get_parquet_embedding_column_names(parquet_schema: pa.Schema) -> list[str]:
@@ -634,7 +689,8 @@ def _load_parquet_item(
     if to_epsg_4326:
         crs = "EPSG:4326"
     else:
-        crs = pyproj.CRS.from_json_dict(geo_metadata["columns"]["geometry"]["crs"])
+        # crs = pyproj.CRS.from_json_dict(geo_metadata["columns"]["geometry"]["crs"])
+        crs = _geoparquet_file_crs(geo_metadata["columns"][geom_column_name])
 
     emb_cube_coords = {}
     geom_coords, emb_values = _prepare_geoparquet(
@@ -848,6 +904,109 @@ def _proj_necessary(
         crs_values.add(_crs_of(asset.href))
 
     return len(crs_values) != 1
+
+
+def _fixed_size_list_to_numpy(
+    col: pa.ChunkedArray | pa.Array, emb_shape: tuple[int, ...], dtype
+) -> np.ndarray:
+    """(Nested) FixedSizeList column -> ndarray of shape (n_rows, *emb_shape), near zero-copy."""
+    arr = col.combine_chunks() if isinstance(col, pa.ChunkedArray) else col
+    n_rows = len(arr)
+    for _ in emb_shape:  # peel off one FixedSizeList level per embedding dimension
+        if arr.null_count:
+            # flatten() silently drops null lists -> reshape would fail cryptically
+            raise ValueError("Null embeddings are not supported.")
+        arr = arr.flatten()  # respects slice offsets
+    return (
+        arr.to_numpy(zero_copy_only=False)
+        .reshape(n_rows, *emb_shape)
+        .astype(dtype, copy=False)
+    )
+
+
+def _read_geoparquet_eager(
+    path, bbox, geom_col, emb_cols, emb_shape, emb_dtype, to_epsg_4326
+):
+    bbox_arg = None
+    if bbox is not None:
+        if bbox.crs != "EPSG:4326":
+            bbox = _reproject_bbox(bbox, "EPSG:4326")
+        bbox_arg = (bbox.west, bbox.south, bbox.east, bbox.north)
+
+    # Uses GeoParquet bbox covering / row-group stats when available (geopandas >= 1.0).
+    # Note: geopandas interprets bbox in the file's CRS -> reproject first if file CRS != 4326.
+    gdf = gpd.read_parquet(path, columns=[geom_col, *emb_cols], bbox=bbox_arg)
+    if to_epsg_4326:
+        gdf = gdf.to_crs(epsg=4326)
+
+    geoms = shapely.normalize(gdf.geometry.values)
+
+    # Decode embeddings via Arrow, not via pandas object columns
+    table = pa.Table.from_pandas(gdf[emb_cols], preserve_index=False)
+    emb = np.stack(
+        [_fixed_size_list_to_numpy(table[c], emb_shape, emb_dtype) for c in emb_cols],
+        axis=0,
+    )  # (n_time_cols, n_rows, *emb_shape)
+    return geoms, emb
+
+
+def _load_embedding_collection_parquet(collection, items, asset_name, bbox):
+    to_epsg_4326 = _proj_necessary(collection, items, asset_name)
+
+    def _load(item):
+        cube = _load_embedding_item(item, asset_name, bbox, None, to_epsg_4326)
+        if "time" not in cube.dims:
+            cube = cube.expand_dims("time")
+        return cube
+
+    with ThreadPoolExecutor(max_workers=8) as ex:
+        cubes = list(ex.map(_load, items))
+
+    # Materialise everything in ONE parallel compute (not N sequential persists)
+    cubes = dask.compute(*cubes)
+
+    geom_index = GeometrySpatialHash(tolerance=1e-5)
+    time_set, meta = set(), []
+    for item, cube in zip(items, cubes):
+        if "time" in cube.coords:
+            times = [pd.Timestamp(t).to_pydatetime() for t in cube.time.values]
+        else:
+            times = cube.sizes["time"] * [_get_item_time(item)]
+        time_set.update(times)
+        g_idx = np.fromiter(
+            (geom_index.get_or_add(g) for g in cube.geometry.values), dtype=np.int64
+        )
+        meta.append((times, g_idx, cube))
+
+    time_coords = sorted(time_set)
+    t_lookup = {t: i for i, t in enumerate(time_coords)}
+    geom_coords = geom_index.geometries
+
+    sample = meta[0][2]
+    trailing_dims = sample.dims[2:]
+    trailing_shape = sample.shape[2:]
+    dtype = np.result_type(
+        sample.dtype, np.float32
+    )  # need a NaN-capable dtype for gaps
+
+    out = np.full(
+        (len(time_coords), len(geom_coords), *trailing_shape), np.nan, dtype=dtype
+    )
+
+    for times, g_idx, cube in meta:
+        t_idx = np.array([t_lookup[t] for t in times])
+        vals = cube.transpose("time", "geometry", *trailing_dims).values
+        out[t_idx[:, None], g_idx[None, :]] = vals  # one vectorised scatter per item
+
+    data = da.from_array(
+        out, chunks={0: 1, 1: 10_000}
+    )  # sane chunks for downstream ops
+    result = xr.DataArray(
+        data,
+        dims=("time", "geometry", *trailing_dims),
+        coords={"time": time_coords, "geometry": geom_coords},
+    ).xvec.set_geom_indexes("geometry", crs="EPSG:4326")
+    return result
 
 
 def _load_embedding_collection_parquet(
