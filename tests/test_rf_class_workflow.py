@@ -1,8 +1,12 @@
+import math
 import os
+import random
 
 import numpy as np
 import pytest
+import shapely
 import xarray as xr
+import xvec
 from dask import array as da
 from dask.delayed import Delayed
 
@@ -18,15 +22,19 @@ TARGET_DIM = "target_dim"
 
 @pytest.fixture
 def training_data() -> xr.DataArray:
+    geoms = [
+        shapely.Point(random.uniform(-180.0, 180.0), random.uniform(-90.0, 90.0))
+        for _ in range(999)
+    ]
     data = xr.DataArray(
         da.random.random((999, 5, 12)),
         dims=("geometry", "time", TARGET_DIM),
         coords={
-            "geometry": range(999),
+            "geometry": geoms,
             "class_name": ("geometry", [*333 * ["a"], *333 * ["b"], *333 * ["c"]]),
             TARGET_DIM: [f"B{str(b)}" for b in range(12)],
         },
-    )
+    ).xvec.set_geom_indexes("geometry", crs=4326)
     data.name = None
     return data
 
