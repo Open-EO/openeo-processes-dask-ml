@@ -14,6 +14,14 @@ try:
 except ImportError:
     pass
 
+try:
+    from .data_model import SkLearnModel
+
+    AVAILABLE_ML_FRAMEWORKS.append("scikit-learn")
+
+except ImportError:
+    pass
+
 from openeo_processes_dask_ml.process_implementations.utils import stac_utils
 
 
@@ -92,6 +100,8 @@ def load_stac_ml(
 
     if ml_framework.lower() == "pytorch":
         model_object = TorchModel(mlm_item, model_asset, input_index, output_index)
+    elif ml_framework.lower() == "scikit-learn":
+        model_object = SkLearnModel(mlm_item, model_asset, input_index, output_index)
     else:
         raise Exception(f"{ml_framework} runtime is not supported.")
 

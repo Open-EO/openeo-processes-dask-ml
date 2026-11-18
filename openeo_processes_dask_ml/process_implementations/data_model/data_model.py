@@ -148,6 +148,10 @@ class MLModel(ABC):
         # url = model_asset.href
         url = self._model_asset.href
 
+        # check if model is on lokal disk
+        if os.path.exists(url):  # url could be a local machine path
+            return url
+
         # encode URL to directory name and file name
         model_dir_name = model_cache_utils.url_to_dir_string(url)
         model_file_name = model_cache_utils.url_to_dir_string(url.split("/")[-1], True)
