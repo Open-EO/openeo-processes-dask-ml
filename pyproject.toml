@@ -24,11 +24,11 @@ dependencies = [
 
 [project.optional-dependencies]
 torch-cuda = [
-    "torch==2.9.0",
+    "torch==2.13.0",
     "ml-datacube-bridge[torch] @ git+https://github.com/jonas-hurst/ml-datacube-bridge@0.1.0"
 ]
 torch-cpu = [
-    "torch==2.9.0",
+    "torch==2.13.0",
     "ml-datacube-bridge[torch] @ git+https://github.com/jonas-hurst/ml-datacube-bridge@0.1.0"
 ]
 scikit-learn = ["scikit-learn>=1.8.0"]
