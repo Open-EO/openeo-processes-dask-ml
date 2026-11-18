@@ -8,6 +8,8 @@ from collections.abc import Iterable
 from pathlib import Path
 from typing import Self
 
+import _locale
+import joblib
 import numpy as np
 import pandas as pd
 import xarray as xr
@@ -62,9 +64,21 @@ class SkLearnModel(MLModel):
         ]
         return run_command
 
+    def _load_model(self, model_path):
+        artifact_type = self.model_asset_metadata.artifact_type
+        if artifact_type == "pickle.dump":
+            with open(model_path, "rb") as file:
+                return pickle.load(file)
+
+        if artifact_type == "joblib.dump":
+            return joblib.load(model_path)
+
+        raise Exception(
+            f"Unable to load scikit-learn model serialized as {artifact_type}"
+        )
+
     def predict_func(self, arr: np.ndarray, model_path: str, input_dims: list[str]):
-        with open(model_path, "rb") as file:
-            model = pickle.load(file)
+        model = self._load_model(model_path)
 
         n_dims_arr = len(arr.shape)
 
@@ -282,8 +296,13 @@ class RfRegrModel(SkLearnModel):
             pickle.dump(model, file)
 
         y_pred = model.predict(X_val)
-
-        logger.info("Regression Result: ")
+        logger.info("Regression Report: ")
+        logger.info(
+            f"Received {len(training_set_df)} featuers for training. "
+            f"Used {len(X_train)} features for model training and "
+            f" {len(X_val)} features for validation"
+        )
+        logger.info("Showing regression statistics based on the validation set:")
         logger.info(f"R2-Score: {r2_score(y_val, y_pred)}")
         logger.info(f"RMSE: : {root_mean_squared_error(y_val, y_pred)}")
         logger.info(f"MAE: {mean_absolute_error(y_val, y_pred)}")
