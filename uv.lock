@@ -1,18 +1,18 @@
 version = 1
-revision = 3
+revision = 5
 requires-python = ">=3.12, <3.15"
 resolution-markers = [
     "python_full_version >= '3.14' and extra != 'extra-24-openeo-processes-dask-ml-torch-cpu' and extra == 'extra-24-openeo-processes-dask-ml-torch-cuda'",
-    "python_full_version == '3.13.*' and extra != 'extra-24-openeo-processes-dask-ml-torch-cpu' and extra == 'extra-24-openeo-processes-dask-ml-torch-cuda'",
-    "python_full_version < '3.13' and extra != 'extra-24-openeo-processes-dask-ml-torch-cpu' and extra == 'extra-24-openeo-processes-dask-ml-torch-cuda'",
     "python_full_version >= '3.14' and sys_platform != 'darwin' and extra == 'extra-24-openeo-processes-dask-ml-torch-cpu' and extra != 'extra-24-openeo-processes-dask-ml-torch-cuda'",
-    "python_full_version == '3.13.*' and sys_platform != 'darwin' and extra == 'extra-24-openeo-processes-dask-ml-torch-cpu' and extra != 'extra-24-openeo-processes-dask-ml-torch-cuda'",
-    "python_full_version < '3.13' and sys_platform != 'darwin' and extra == 'extra-24-openeo-processes-dask-ml-torch-cpu' and extra != 'extra-24-openeo-processes-dask-ml-torch-cuda'",
     "python_full_version >= '3.14' and sys_platform == 'darwin' and extra == 'extra-24-openeo-processes-dask-ml-torch-cpu' and extra != 'extra-24-openeo-processes-dask-ml-torch-cuda'",
-    "python_full_version == '3.13.*' and sys_platform == 'darwin' and extra == 'extra-24-openeo-processes-dask-ml-torch-cpu' and extra != 'extra-24-openeo-processes-dask-ml-torch-cuda'",
-    "python_full_version < '3.13' and sys_platform == 'darwin' and extra == 'extra-24-openeo-processes-dask-ml-torch-cpu' and extra != 'extra-24-openeo-processes-dask-ml-torch-cuda'",
     "python_full_version >= '3.14' and extra != 'extra-24-openeo-processes-dask-ml-torch-cpu' and extra != 'extra-24-openeo-processes-dask-ml-torch-cuda'",
+    "python_full_version == '3.13.*' and extra != 'extra-24-openeo-processes-dask-ml-torch-cpu' and extra == 'extra-24-openeo-processes-dask-ml-torch-cuda'",
+    "python_full_version == '3.13.*' and sys_platform != 'darwin' and extra == 'extra-24-openeo-processes-dask-ml-torch-cpu' and extra != 'extra-24-openeo-processes-dask-ml-torch-cuda'",
+    "python_full_version == '3.13.*' and sys_platform == 'darwin' and extra == 'extra-24-openeo-processes-dask-ml-torch-cpu' and extra != 'extra-24-openeo-processes-dask-ml-torch-cuda'",
     "python_full_version == '3.13.*' and extra != 'extra-24-openeo-processes-dask-ml-torch-cpu' and extra != 'extra-24-openeo-processes-dask-ml-torch-cuda'",
+    "python_full_version < '3.13' and extra != 'extra-24-openeo-processes-dask-ml-torch-cpu' and extra == 'extra-24-openeo-processes-dask-ml-torch-cuda'",
+    "python_full_version < '3.13' and sys_platform != 'darwin' and extra == 'extra-24-openeo-processes-dask-ml-torch-cpu' and extra != 'extra-24-openeo-processes-dask-ml-torch-cuda'",
+    "python_full_version < '3.13' and sys_platform == 'darwin' and extra == 'extra-24-openeo-processes-dask-ml-torch-cpu' and extra != 'extra-24-openeo-processes-dask-ml-torch-cuda'",
     "python_full_version < '3.13' and extra != 'extra-24-openeo-processes-dask-ml-torch-cpu' and extra != 'extra-24-openeo-processes-dask-ml-torch-cuda'",
 ]
 conflicts = [[
@@ -70,7 +70,7 @@ dependencies = [
     { name = "frozenlist" },
     { name = "multidict" },
     { name = "propcache" },
-    { name = "typing-extensions", marker = "python_full_version < '3.13' or (extra == 'extra-24-openeo-processes-dask-ml-torch-cpu' and extra == 'extra-24-openeo-processes-dask-ml-torch-cuda')" },
+    { name = "typing-extensions", marker = "python_full_version < '3.13'" },
     { name = "yarl" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/6c/4c/bdccd81e9ee225b69c60e7766c9a5b05364f118f4d383713b89a682d772d/aiohttp-3.14.5.tar.gz", hash = "sha256:5558a7f5a05af9ecf744af91e5baefc436f93c9333e656c27ec253f9a6bbe178", size = 8078052, upload-time = "2026-10-11T01:05:12.408Z" }
@@ -175,7 +175,7 @@ version = "1.4.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "frozenlist" },
-    { name = "typing-extensions", marker = "python_full_version < '3.13' or (extra == 'extra-24-openeo-processes-dask-ml-torch-cpu' and extra == 'extra-24-openeo-processes-dask-ml-torch-cuda')" },
+    { name = "typing-extensions", marker = "python_full_version < '3.13'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/61/62/06741b579156360248d1ec624842ad0edf697050bbaf7c3e46394e106ad1/aiosignal-1.4.0.tar.gz", hash = "sha256:f47eecd9468083c2029cc99945502cb7708b082c232f9aca65da147157b251c7", size = 25007, upload-time = "2025-07-03T22:54:43.528Z" }
 wheels = [
@@ -390,7 +390,7 @@ dependencies = [
     { name = "packaging" },
     { name = "pillow" },
     { name = "pyyaml" },
-    { name = "tornado", marker = "sys_platform != 'emscripten' or (extra == 'extra-24-openeo-processes-dask-ml-torch-cpu' and extra == 'extra-24-openeo-processes-dask-ml-torch-cuda')" },
+    { name = "tornado", marker = "sys_platform != 'emscripten'" },
     { name = "xyzservices" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/00/9f/76e8aaa9517278879568d568a58a4437a2eeddb88681382922c262c55acd/bokeh-3.10.2.tar.gz", hash = "sha256:d9fba1004fae149c6e6d54ba37410e52b8d4622ed5c6dad2220afa1b61362de0", size = 6060293, upload-time = "2026-11-05T18:31:20.653Z" }
@@ -501,7 +501,7 @@ name = "cffi"
 version = "2.1.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "pycparser", marker = "implementation_name != 'PyPy' or (extra == 'extra-24-openeo-processes-dask-ml-torch-cpu' and extra == 'extra-24-openeo-processes-dask-ml-torch-cuda')" },
+    { name = "pycparser", marker = "implementation_name != 'PyPy'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/9e/ef/008a1939e372c06329a3fce4279c02f328488f3526744906eeec3da7ad5f/cffi-2.1.1.tar.gz", hash = "sha256:dd31f52ea1086513bb9df30f8fcee9b8918323ae067a3d5b78bc826a000712be", size = 530807, upload-time = "2026-08-03T21:21:18.939Z" }
 wheels = [
@@ -1330,7 +1330,7 @@ name = "ipykernel"
 version = "7.4.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "appnope", marker = "sys_platform == 'darwin' or (extra == 'extra-24-openeo-processes-dask-ml-torch-cpu' and extra == 'extra-24-openeo-processes-dask-ml-torch-cuda')" },
+    { name = "appnope", marker = "sys_platform == 'darwin'" },
     { name = "comm" },
     { name = "debugpy" },
     { name = "ipython" },
@@ -1353,13 +1353,13 @@ name = "ipython"
 version = "9.18.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "colorama", marker = "sys_platform == 'win32' or (extra == 'extra-24-openeo-processes-dask-ml-torch-cpu' and extra == 'extra-24-openeo-processes-dask-ml-torch-cuda')" },
+    { name = "colorama", marker = "sys_platform == 'win32'" },
     { name = "ipython-pygments-lexers" },
     { name = "jedi" },
     { name = "matplotlib-inline" },
-    { name = "pexpect", marker = "(sys_platform != 'emscripten' and sys_platform != 'win32') or (sys_platform == 'emscripten' and extra == 'extra-24-openeo-processes-dask-ml-torch-cpu' and extra == 'extra-24-openeo-processes-dask-ml-torch-cuda') or (sys_platform == 'win32' and extra == 'extra-24-openeo-processes-dask-ml-torch-cpu' and extra == 'extra-24-openeo-processes-dask-ml-torch-cuda')" },
+    { name = "pexpect", marker = "sys_platform != 'emscripten' and sys_platform != 'win32'" },
     { name = "prompt-toolkit" },
-    { name = "psutil", marker = "(sys_platform != 'android' and sys_platform != 'cygwin' and sys_platform != 'emscripten') or (sys_platform == 'android' and extra == 'extra-24-openeo-processes-dask-ml-torch-cpu' and extra == 'extra-24-openeo-processes-dask-ml-torch-cuda') or (sys_platform == 'cygwin' and extra == 'extra-24-openeo-processes-dask-ml-torch-cpu' and extra == 'extra-24-openeo-processes-dask-ml-torch-cuda') or (sys_platform == 'emscripten' and extra == 'extra-24-openeo-processes-dask-ml-torch-cpu' and extra == 'extra-24-openeo-processes-dask-ml-torch-cuda')" },
+    { name = "psutil", marker = "sys_platform != 'android' and sys_platform != 'cygwin' and sys_platform != 'emscripten'" },
     { name = "pygments" },
     { name = "stack-data" },
     { name = "traitlets" },
@@ -1586,7 +1586,7 @@ dependencies = [
     { name = "nbformat" },
     { name = "packaging" },
     { name = "prometheus-client" },
-    { name = "pywinpty", marker = "(os_name == 'nt' and sys_platform != 'darwin') or (os_name == 'nt' and extra != 'extra-24-openeo-processes-dask-ml-torch-cpu') or (os_name != 'nt' and extra == 'extra-24-openeo-processes-dask-ml-torch-cpu' and extra == 'extra-24-openeo-processes-dask-ml-torch-cuda') or (sys_platform == 'darwin' and extra == 'extra-24-openeo-processes-dask-ml-torch-cpu' and extra == 'extra-24-openeo-processes-dask-ml-torch-cuda')" },
+    { name = "pywinpty", marker = "(os_name == 'nt' and sys_platform != 'darwin') or (os_name == 'nt' and extra != 'extra-24-openeo-processes-dask-ml-torch-cpu') or (extra == 'extra-24-openeo-processes-dask-ml-torch-cpu' and extra == 'extra-24-openeo-processes-dask-ml-torch-cuda')" },
     { name = "pyzmq" },
     { name = "send2trash" },
     { name = "terminado" },
@@ -1620,7 +1620,7 @@ name = "jupyter-server-terminals"
 version = "0.5.4"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "pywinpty", marker = "(os_name == 'nt' and sys_platform != 'darwin') or (os_name == 'nt' and extra != 'extra-24-openeo-processes-dask-ml-torch-cpu') or (os_name != 'nt' and extra == 'extra-24-openeo-processes-dask-ml-torch-cpu' and extra == 'extra-24-openeo-processes-dask-ml-torch-cuda') or (sys_platform == 'darwin' and extra == 'extra-24-openeo-processes-dask-ml-torch-cpu' and extra == 'extra-24-openeo-processes-dask-ml-torch-cuda')" },
+    { name = "pywinpty", marker = "(os_name == 'nt' and sys_platform != 'darwin') or (os_name == 'nt' and extra != 'extra-24-openeo-processes-dask-ml-torch-cpu') or (extra == 'extra-24-openeo-processes-dask-ml-torch-cpu' and extra == 'extra-24-openeo-processes-dask-ml-torch-cuda')" },
     { name = "terminado" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/f4/a7/bcd0a9b0cbba88986fe944aaaf91bfda603e5a50bda8ed15123f381a3b2f/jupyter_server_terminals-0.5.4.tar.gz", hash = "sha256:bbda128ed41d0be9020349f9f1f2a4ab9952a73ed5f5ac9f1419794761fb87f5", size = 31770, upload-time = "2026-01-14T16:53:20.213Z" }
@@ -2584,7 +2584,7 @@ dependencies = [
     { name = "deprecated" },
     { name = "geopandas" },
     { name = "numpy" },
-    { name = "oschmod", marker = "sys_platform == 'win32' or (extra == 'extra-24-openeo-processes-dask-ml-torch-cpu' and extra == 'extra-24-openeo-processes-dask-ml-torch-cuda')" },
+    { name = "oschmod", marker = "sys_platform == 'win32'" },
     { name = "pandas" },
     { name = "pystac", extra = ["validation"] },
     { name = "requests" },
@@ -2648,8 +2648,8 @@ implementations = [
     { name = "pystac" },
     { name = "pystac-client" },
     { name = "rasterio" },
-    { name = "rioxarray", version = "0.23.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.13' or (extra == 'extra-24-openeo-processes-dask-ml-torch-cpu' and extra == 'extra-24-openeo-processes-dask-ml-torch-cuda')" },
-    { name = "rioxarray", version = "0.24.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.13' or (extra == 'extra-24-openeo-processes-dask-ml-torch-cpu' and extra == 'extra-24-openeo-processes-dask-ml-torch-cuda')" },
+    { name = "rioxarray", version = "0.23.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.13'" },
+    { name = "rioxarray", version = "0.24.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.13'" },
     { name = "stac-validator" },
     { name = "xarray" },
     { name = "xvec" },
@@ -2666,8 +2666,8 @@ dependencies = [
     { name = "ml-datacube-bridge" },
     { name = "openeo-processes-dask", extra = ["implementations"] },
     { name = "pystac" },
-    { name = "rioxarray", version = "0.23.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.13' or (extra == 'extra-24-openeo-processes-dask-ml-torch-cpu' and extra == 'extra-24-openeo-processes-dask-ml-torch-cuda')" },
-    { name = "rioxarray", version = "0.24.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.13' or (extra == 'extra-24-openeo-processes-dask-ml-torch-cpu' and extra == 'extra-24-openeo-processes-dask-ml-torch-cuda')" },
+    { name = "rioxarray", version = "0.23.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.13'" },
+    { name = "rioxarray", version = "0.24.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.13'" },
     { name = "s3fs" },
     { name = "stackstac" },
     { name = "zarr" },
@@ -2734,7 +2734,7 @@ dev = [
     { name = "notebook", specifier = ">=7.4.4,<8.0.0" },
     { name = "pandas-stubs", specifier = ">=3.0.5.260730" },
     { name = "pre-commit", specifier = ">=4.2.0,<5.0.0" },
-    { name = "pytest", specifier = ">=8.3.5,<9.0.0" },
+    { name = "pytest", specifier = ">=8.3.5,<10.0.0" },
     { name = "pytest-cov", specifier = ">=7.0.0,<8.0.0" },
     { name = "pytest-mock", specifier = ">=3.14.0,<4.0.0" },
     { name = "pytest-recording", specifier = ">=0.13.4,<0.14.0" },
@@ -2746,7 +2746,7 @@ name = "oschmod"
 version = "0.7.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "pywin32", marker = "sys_platform == 'win32' or (extra == 'extra-24-openeo-processes-dask-ml-torch-cpu' and extra == 'extra-24-openeo-processes-dask-ml-torch-cuda')" },
+    { name = "pywin32" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/54/ef/ad77c29305872e0084361e5159e3a2765c5ef2f2469454f2ccaf9e31253c/oschmod-0.7.0.tar.gz", hash = "sha256:e3af9400b9c29b37199290d8d9b944b5c2fc7b887c65b63aba082f2d24e0c90e", size = 52074, upload-time = "2026-10-29T20:28:11.652Z" }
 wheels = [
@@ -3645,18 +3645,18 @@ dependencies = [
 
 [[package]]
 name = "pytest"
-version = "8.4.2"
+version = "9.0.3"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "colorama", marker = "sys_platform == 'win32' or (extra == 'extra-24-openeo-processes-dask-ml-torch-cpu' and extra == 'extra-24-openeo-processes-dask-ml-torch-cuda')" },
+    { name = "colorama", marker = "sys_platform == 'win32'" },
     { name = "iniconfig" },
     { name = "packaging" },
     { name = "pluggy" },
     { name = "pygments" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/a3/5c/00a0e072241553e1a7496d638deababa67c5058571567b92a7eaa258397c/pytest-8.4.2.tar.gz", hash = "sha256:86c0d0b93306b961d58d62a4db4879f27fe25513d4b969df351abdddb3c30e01", size = 1519618, upload-time = "2025-09-04T14:34:22.711Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/7d/0d/549bd94f1a0a402dc8cf64563a117c0f3765662e2e668477624baeec44d5/pytest-9.0.3.tar.gz", hash = "sha256:b86ada508af81d19edeb213c681b1d48246c1a91d304c6c81a427674c17eb91c", size = 1572165, upload-time = "2026-04-07T17:16:18.027Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/a8/a4/20da314d277121d6534b3a980b29035dcd51e6744bd79075a6ce8fa4eb8d/pytest-8.4.2-py3-none-any.whl", hash = "sha256:872f880de3fc3a5bdc88a11b39c9710c3497a547cfa9320bc3c5e62fbf272e79", size = 365750, upload-time = "2025-09-04T14:34:20.226Z" },
+    { url = "https://files.pythonhosted.org/packages/d4/24/a372aaf5c9b7208e7112038812994107bc65a84cd00e0354a88c2c77a617/pytest-9.0.3-py3-none-any.whl", hash = "sha256:2c5efc453d45394fdd706ade797c0a81091eccd1d6e4bccfcd476e2b8e0ab5d9", size = 375249, upload-time = "2026-04-07T17:16:16.13Z" },
 ]
 
 [[package]]
@@ -3861,7 +3861,7 @@ name = "pyzmq"
 version = "27.3.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "cffi", marker = "implementation_name == 'pypy' or (extra == 'extra-24-openeo-processes-dask-ml-torch-cpu' and extra == 'extra-24-openeo-processes-dask-ml-torch-cuda')" },
+    { name = "cffi", marker = "implementation_name == 'pypy'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/e2/e1/ea46ab0d707219c098065a37d2add5b53d3b124241aa19429bcd0863e5b4/pyzmq-27.3.0.tar.gz", hash = "sha256:bbedb3d1d99babc625f1dd9d7438acefd442b36b75073fd6bc1ef7c0a4b96d56", size = 293249, upload-time = "2026-11-04T00:31:33.068Z" }
 wheels = [
@@ -3945,7 +3945,7 @@ source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "attrs" },
     { name = "rpds-py" },
-    { name = "typing-extensions", marker = "python_full_version < '3.13' or (extra == 'extra-24-openeo-processes-dask-ml-torch-cpu' and extra == 'extra-24-openeo-processes-dask-ml-torch-cuda')" },
+    { name = "typing-extensions", marker = "python_full_version < '3.13'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/22/f5/df4e9027acead3ecc63e50fe1e36aca1523e1719559c499951bb4b53188f/referencing-0.37.0.tar.gz", hash = "sha256:44aefc3142c5b842538163acb373e24cce6632bd54bdb01b21ad5863489f50d8", size = 78036, upload-time = "2025-10-13T15:30:48.871Z" }
 wheels = [
@@ -4011,11 +4011,11 @@ resolution-markers = [
     "python_full_version < '3.13' and extra != 'extra-24-openeo-processes-dask-ml-torch-cpu' and extra != 'extra-24-openeo-processes-dask-ml-torch-cuda'",
 ]
 dependencies = [
-    { name = "numpy", marker = "python_full_version < '3.13' or (extra == 'extra-24-openeo-processes-dask-ml-torch-cpu' and extra == 'extra-24-openeo-processes-dask-ml-torch-cuda')" },
-    { name = "packaging", marker = "python_full_version < '3.13' or (extra == 'extra-24-openeo-processes-dask-ml-torch-cpu' and extra == 'extra-24-openeo-processes-dask-ml-torch-cuda')" },
-    { name = "pyproj", marker = "python_full_version < '3.13' or (extra == 'extra-24-openeo-processes-dask-ml-torch-cpu' and extra == 'extra-24-openeo-processes-dask-ml-torch-cuda')" },
-    { name = "rasterio", marker = "python_full_version < '3.13' or (extra == 'extra-24-openeo-processes-dask-ml-torch-cpu' and extra == 'extra-24-openeo-processes-dask-ml-torch-cuda')" },
-    { name = "xarray", marker = "python_full_version < '3.13' or (extra == 'extra-24-openeo-processes-dask-ml-torch-cpu' and extra == 'extra-24-openeo-processes-dask-ml-torch-cuda')" },
+    { name = "numpy" },
+    { name = "packaging" },
+    { name = "pyproj" },
+    { name = "rasterio" },
+    { name = "xarray" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/c9/8d/9e5ab7525d2e81f9963a9192637ba8808e214f1c93a5ed000048447d626f/rioxarray-0.23.0.tar.gz", hash = "sha256:800fc3ae2405ff535edf657f3f0a6bda5a70e72282883ce18c7daecd8e0bfc58", size = 61638, upload-time = "2026-07-27T19:33:29.281Z" }
 wheels = [
@@ -4028,20 +4028,20 @@ version = "0.24.0"
 source = { registry = "https://pypi.org/simple" }
 resolution-markers = [
     "python_full_version >= '3.14' and extra != 'extra-24-openeo-processes-dask-ml-torch-cpu' and extra == 'extra-24-openeo-processes-dask-ml-torch-cuda'",
-    "python_full_version == '3.13.*' and extra != 'extra-24-openeo-processes-dask-ml-torch-cpu' and extra == 'extra-24-openeo-processes-dask-ml-torch-cuda'",
     "python_full_version >= '3.14' and sys_platform != 'darwin' and extra == 'extra-24-openeo-processes-dask-ml-torch-cpu' and extra != 'extra-24-openeo-processes-dask-ml-torch-cuda'",
-    "python_full_version == '3.13.*' and sys_platform != 'darwin' and extra == 'extra-24-openeo-processes-dask-ml-torch-cpu' and extra != 'extra-24-openeo-processes-dask-ml-torch-cuda'",
     "python_full_version >= '3.14' and sys_platform == 'darwin' and extra == 'extra-24-openeo-processes-dask-ml-torch-cpu' and extra != 'extra-24-openeo-processes-dask-ml-torch-cuda'",
-    "python_full_version == '3.13.*' and sys_platform == 'darwin' and extra == 'extra-24-openeo-processes-dask-ml-torch-cpu' and extra != 'extra-24-openeo-processes-dask-ml-torch-cuda'",
     "python_full_version >= '3.14' and extra != 'extra-24-openeo-processes-dask-ml-torch-cpu' and extra != 'extra-24-openeo-processes-dask-ml-torch-cuda'",
+    "python_full_version == '3.13.*' and extra != 'extra-24-openeo-processes-dask-ml-torch-cpu' and extra == 'extra-24-openeo-processes-dask-ml-torch-cuda'",
+    "python_full_version == '3.13.*' and sys_platform != 'darwin' and extra == 'extra-24-openeo-processes-dask-ml-torch-cpu' and extra != 'extra-24-openeo-processes-dask-ml-torch-cuda'",
+    "python_full_version == '3.13.*' and sys_platform == 'darwin' and extra == 'extra-24-openeo-processes-dask-ml-torch-cpu' and extra != 'extra-24-openeo-processes-dask-ml-torch-cuda'",
     "python_full_version == '3.13.*' and extra != 'extra-24-openeo-processes-dask-ml-torch-cpu' and extra != 'extra-24-openeo-processes-dask-ml-torch-cuda'",
 ]
 dependencies = [
-    { name = "affine", marker = "python_full_version >= '3.13' or (extra == 'extra-24-openeo-processes-dask-ml-torch-cpu' and extra == 'extra-24-openeo-processes-dask-ml-torch-cuda')" },
-    { name = "numpy", marker = "python_full_version >= '3.13' or (extra == 'extra-24-openeo-processes-dask-ml-torch-cpu' and extra == 'extra-24-openeo-processes-dask-ml-torch-cuda')" },
-    { name = "pyproj", marker = "python_full_version >= '3.13' or (extra == 'extra-24-openeo-processes-dask-ml-torch-cpu' and extra == 'extra-24-openeo-processes-dask-ml-torch-cuda')" },
-    { name = "rasterio", marker = "python_full_version >= '3.13' or (extra == 'extra-24-openeo-processes-dask-ml-torch-cpu' and extra == 'extra-24-openeo-processes-dask-ml-torch-cuda')" },
-    { name = "xarray", marker = "python_full_version >= '3.13' or (extra == 'extra-24-openeo-processes-dask-ml-torch-cpu' and extra == 'extra-24-openeo-processes-dask-ml-torch-cuda')" },
+    { name = "affine" },
+    { name = "numpy" },
+    { name = "pyproj" },
+    { name = "rasterio" },
+    { name = "xarray" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/6a/54/b5d316ffc92347da8d9a208f8c37aebbb2adf87336eabee44516c540909e/rioxarray-0.24.0.tar.gz", hash = "sha256:b5ea51c4218e079c68e302f9cdb9ae4981a9ee6927f22d32a1abd9bb1eab929c", size = 61665, upload-time = "2026-10-29T15:49:39.427Z" }
 wheels = [
@@ -4437,8 +4437,8 @@ name = "terminado"
 version = "0.18.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "ptyprocess", marker = "os_name != 'nt' or (extra == 'extra-24-openeo-processes-dask-ml-torch-cpu' and extra == 'extra-24-openeo-processes-dask-ml-torch-cuda')" },
-    { name = "pywinpty", marker = "(os_name == 'nt' and sys_platform != 'darwin') or (os_name == 'nt' and extra != 'extra-24-openeo-processes-dask-ml-torch-cpu') or (os_name != 'nt' and extra == 'extra-24-openeo-processes-dask-ml-torch-cpu' and extra == 'extra-24-openeo-processes-dask-ml-torch-cuda') or (sys_platform == 'darwin' and extra == 'extra-24-openeo-processes-dask-ml-torch-cpu' and extra == 'extra-24-openeo-processes-dask-ml-torch-cuda')" },
+    { name = "ptyprocess", marker = "os_name != 'nt'" },
+    { name = "pywinpty", marker = "(os_name == 'nt' and sys_platform != 'darwin') or (os_name == 'nt' and extra != 'extra-24-openeo-processes-dask-ml-torch-cpu') or (extra == 'extra-24-openeo-processes-dask-ml-torch-cpu' and extra == 'extra-24-openeo-processes-dask-ml-torch-cuda')" },
     { name = "tornado" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/8a/11/965c6fd8e5cc254f1fe142d547387da17a8ebfd75a3455f637c663fb38a0/terminado-0.18.1.tar.gz", hash = "sha256:de09f2c4b85de4765f7714688fff57d3e75bad1f909b589fde880460c753fd2e", size = 32701, upload-time = "2024-03-12T14:34:39.026Z" }
@@ -4516,24 +4516,24 @@ dependencies = [
     { name = "fsspec", marker = "extra == 'extra-24-openeo-processes-dask-ml-torch-cuda'" },
     { name = "jinja2", marker = "extra == 'extra-24-openeo-processes-dask-ml-torch-cuda'" },
     { name = "networkx", marker = "extra == 'extra-24-openeo-processes-dask-ml-torch-cuda'" },
-    { name = "nvidia-cublas-cu12", marker = "(platform_machine == 'x86_64' and sys_platform == 'linux' and extra == 'extra-24-openeo-processes-dask-ml-torch-cuda') or (platform_machine != 'x86_64' and extra == 'extra-24-openeo-processes-dask-ml-torch-cpu' and extra == 'extra-24-openeo-processes-dask-ml-torch-cuda') or (sys_platform != 'linux' and extra == 'extra-24-openeo-processes-dask-ml-torch-cpu' and extra == 'extra-24-openeo-processes-dask-ml-torch-cuda')" },
-    { name = "nvidia-cuda-cupti-cu12", marker = "(platform_machine == 'x86_64' and sys_platform == 'linux' and extra == 'extra-24-openeo-processes-dask-ml-torch-cuda') or (platform_machine != 'x86_64' and extra == 'extra-24-openeo-processes-dask-ml-torch-cpu' and extra == 'extra-24-openeo-processes-dask-ml-torch-cuda') or (sys_platform != 'linux' and extra == 'extra-24-openeo-processes-dask-ml-torch-cpu' and extra == 'extra-24-openeo-processes-dask-ml-torch-cuda')" },
-    { name = "nvidia-cuda-nvrtc-cu12", marker = "(platform_machine == 'x86_64' and sys_platform == 'linux' and extra == 'extra-24-openeo-processes-dask-ml-torch-cuda') or (platform_machine != 'x86_64' and extra == 'extra-24-openeo-processes-dask-ml-torch-cpu' and extra == 'extra-24-openeo-processes-dask-ml-torch-cuda') or (sys_platform != 'linux' and extra == 'extra-24-openeo-processes-dask-ml-torch-cpu' and extra == 'extra-24-openeo-processes-dask-ml-torch-cuda')" },
-    { name = "nvidia-cuda-runtime-cu12", marker = "(platform_machine == 'x86_64' and sys_platform == 'linux' and extra == 'extra-24-openeo-processes-dask-ml-torch-cuda') or (platform_machine != 'x86_64' and extra == 'extra-24-openeo-processes-dask-ml-torch-cpu' and extra == 'extra-24-openeo-processes-dask-ml-torch-cuda') or (sys_platform != 'linux' and extra == 'extra-24-openeo-processes-dask-ml-torch-cpu' and extra == 'extra-24-openeo-processes-dask-ml-torch-cuda')" },
-    { name = "nvidia-cudnn-cu12", marker = "(platform_machine == 'x86_64' and sys_platform == 'linux' and extra == 'extra-24-openeo-processes-dask-ml-torch-cuda') or (platform_machine != 'x86_64' and extra == 'extra-24-openeo-processes-dask-ml-torch-cpu' and extra == 'extra-24-openeo-processes-dask-ml-torch-cuda') or (sys_platform != 'linux' and extra == 'extra-24-openeo-processes-dask-ml-torch-cpu' and extra == 'extra-24-openeo-processes-dask-ml-torch-cuda')" },
-    { name = "nvidia-cufft-cu12", marker = "(platform_machine == 'x86_64' and sys_platform == 'linux' and extra == 'extra-24-openeo-processes-dask-ml-torch-cuda') or (platform_machine != 'x86_64' and extra == 'extra-24-openeo-processes-dask-ml-torch-cpu' and extra == 'extra-24-openeo-processes-dask-ml-torch-cuda') or (sys_platform != 'linux' and extra == 'extra-24-openeo-processes-dask-ml-torch-cpu' and extra == 'extra-24-openeo-processes-dask-ml-torch-cuda')" },
-    { name = "nvidia-cufile-cu12", marker = "(platform_machine == 'x86_64' and sys_platform == 'linux' and extra == 'extra-24-openeo-processes-dask-ml-torch-cuda') or (platform_machine != 'x86_64' and extra == 'extra-24-openeo-processes-dask-ml-torch-cpu' and extra == 'extra-24-openeo-processes-dask-ml-torch-cuda') or (sys_platform != 'linux' and extra == 'extra-24-openeo-processes-dask-ml-torch-cpu' and extra == 'extra-24-openeo-processes-dask-ml-torch-cuda')" },
-    { name = "nvidia-curand-cu12", marker = "(platform_machine == 'x86_64' and sys_platform == 'linux' and extra == 'extra-24-openeo-processes-dask-ml-torch-cuda') or (platform_machine != 'x86_64' and extra == 'extra-24-openeo-processes-dask-ml-torch-cpu' and extra == 'extra-24-openeo-processes-dask-ml-torch-cuda') or (sys_platform != 'linux' and extra == 'extra-24-openeo-processes-dask-ml-torch-cpu' and extra == 'extra-24-openeo-processes-dask-ml-torch-cuda')" },
-    { name = "nvidia-cusolver-cu12", marker = "(platform_machine == 'x86_64' and sys_platform == 'linux' and extra == 'extra-24-openeo-processes-dask-ml-torch-cuda') or (platform_machine != 'x86_64' and extra == 'extra-24-openeo-processes-dask-ml-torch-cpu' and extra == 'extra-24-openeo-processes-dask-ml-torch-cuda') or (sys_platform != 'linux' and extra == 'extra-24-openeo-processes-dask-ml-torch-cpu' and extra == 'extra-24-openeo-processes-dask-ml-torch-cuda')" },
-    { name = "nvidia-cusparse-cu12", marker = "(platform_machine == 'x86_64' and sys_platform == 'linux' and extra == 'extra-24-openeo-processes-dask-ml-torch-cuda') or (platform_machine != 'x86_64' and extra == 'extra-24-openeo-processes-dask-ml-torch-cpu' and extra == 'extra-24-openeo-processes-dask-ml-torch-cuda') or (sys_platform != 'linux' and extra == 'extra-24-openeo-processes-dask-ml-torch-cpu' and extra == 'extra-24-openeo-processes-dask-ml-torch-cuda')" },
-    { name = "nvidia-cusparselt-cu12", marker = "(platform_machine == 'x86_64' and sys_platform == 'linux' and extra == 'extra-24-openeo-processes-dask-ml-torch-cuda') or (platform_machine != 'x86_64' and extra == 'extra-24-openeo-processes-dask-ml-torch-cpu' and extra == 'extra-24-openeo-processes-dask-ml-torch-cuda') or (sys_platform != 'linux' and extra == 'extra-24-openeo-processes-dask-ml-torch-cpu' and extra == 'extra-24-openeo-processes-dask-ml-torch-cuda')" },
-    { name = "nvidia-nccl-cu12", marker = "(platform_machine == 'x86_64' and sys_platform == 'linux' and extra == 'extra-24-openeo-processes-dask-ml-torch-cuda') or (platform_machine != 'x86_64' and extra == 'extra-24-openeo-processes-dask-ml-torch-cpu' and extra == 'extra-24-openeo-processes-dask-ml-torch-cuda') or (sys_platform != 'linux' and extra == 'extra-24-openeo-processes-dask-ml-torch-cpu' and extra == 'extra-24-openeo-processes-dask-ml-torch-cuda')" },
-    { name = "nvidia-nvjitlink-cu12", marker = "(platform_machine == 'x86_64' and sys_platform == 'linux' and extra == 'extra-24-openeo-processes-dask-ml-torch-cuda') or (platform_machine != 'x86_64' and extra == 'extra-24-openeo-processes-dask-ml-torch-cpu' and extra == 'extra-24-openeo-processes-dask-ml-torch-cuda') or (sys_platform != 'linux' and extra == 'extra-24-openeo-processes-dask-ml-torch-cpu' and extra == 'extra-24-openeo-processes-dask-ml-torch-cuda')" },
-    { name = "nvidia-nvshmem-cu12", marker = "(platform_machine == 'x86_64' and sys_platform == 'linux' and extra == 'extra-24-openeo-processes-dask-ml-torch-cuda') or (platform_machine != 'x86_64' and extra == 'extra-24-openeo-processes-dask-ml-torch-cpu' and extra == 'extra-24-openeo-processes-dask-ml-torch-cuda') or (sys_platform != 'linux' and extra == 'extra-24-openeo-processes-dask-ml-torch-cpu' and extra == 'extra-24-openeo-processes-dask-ml-torch-cuda')" },
-    { name = "nvidia-nvtx-cu12", marker = "(platform_machine == 'x86_64' and sys_platform == 'linux' and extra == 'extra-24-openeo-processes-dask-ml-torch-cuda') or (platform_machine != 'x86_64' and extra == 'extra-24-openeo-processes-dask-ml-torch-cpu' and extra == 'extra-24-openeo-processes-dask-ml-torch-cuda') or (sys_platform != 'linux' and extra == 'extra-24-openeo-processes-dask-ml-torch-cpu' and extra == 'extra-24-openeo-processes-dask-ml-torch-cuda')" },
+    { name = "nvidia-cublas-cu12", marker = "(platform_machine == 'x86_64' and sys_platform == 'linux' and extra == 'extra-24-openeo-processes-dask-ml-torch-cuda') or (extra == 'extra-24-openeo-processes-dask-ml-torch-cpu' and extra == 'extra-24-openeo-processes-dask-ml-torch-cuda')" },
+    { name = "nvidia-cuda-cupti-cu12", marker = "(platform_machine == 'x86_64' and sys_platform == 'linux' and extra == 'extra-24-openeo-processes-dask-ml-torch-cuda') or (extra == 'extra-24-openeo-processes-dask-ml-torch-cpu' and extra == 'extra-24-openeo-processes-dask-ml-torch-cuda')" },
+    { name = "nvidia-cuda-nvrtc-cu12", marker = "(platform_machine == 'x86_64' and sys_platform == 'linux' and extra == 'extra-24-openeo-processes-dask-ml-torch-cuda') or (extra == 'extra-24-openeo-processes-dask-ml-torch-cpu' and extra == 'extra-24-openeo-processes-dask-ml-torch-cuda')" },
+    { name = "nvidia-cuda-runtime-cu12", marker = "(platform_machine == 'x86_64' and sys_platform == 'linux' and extra == 'extra-24-openeo-processes-dask-ml-torch-cuda') or (extra == 'extra-24-openeo-processes-dask-ml-torch-cpu' and extra == 'extra-24-openeo-processes-dask-ml-torch-cuda')" },
+    { name = "nvidia-cudnn-cu12", marker = "(platform_machine == 'x86_64' and sys_platform == 'linux' and extra == 'extra-24-openeo-processes-dask-ml-torch-cuda') or (extra == 'extra-24-openeo-processes-dask-ml-torch-cpu' and extra == 'extra-24-openeo-processes-dask-ml-torch-cuda')" },
+    { name = "nvidia-cufft-cu12", marker = "(platform_machine == 'x86_64' and sys_platform == 'linux' and extra == 'extra-24-openeo-processes-dask-ml-torch-cuda') or (extra == 'extra-24-openeo-processes-dask-ml-torch-cpu' and extra == 'extra-24-openeo-processes-dask-ml-torch-cuda')" },
+    { name = "nvidia-cufile-cu12", marker = "(platform_machine == 'x86_64' and sys_platform == 'linux' and extra == 'extra-24-openeo-processes-dask-ml-torch-cuda') or (extra == 'extra-24-openeo-processes-dask-ml-torch-cpu' and extra == 'extra-24-openeo-processes-dask-ml-torch-cuda')" },
+    { name = "nvidia-curand-cu12", marker = "(platform_machine == 'x86_64' and sys_platform == 'linux' and extra == 'extra-24-openeo-processes-dask-ml-torch-cuda') or (extra == 'extra-24-openeo-processes-dask-ml-torch-cpu' and extra == 'extra-24-openeo-processes-dask-ml-torch-cuda')" },
+    { name = "nvidia-cusolver-cu12", marker = "(platform_machine == 'x86_64' and sys_platform == 'linux' and extra == 'extra-24-openeo-processes-dask-ml-torch-cuda') or (extra == 'extra-24-openeo-processes-dask-ml-torch-cpu' and extra == 'extra-24-openeo-processes-dask-ml-torch-cuda')" },
+    { name = "nvidia-cusparse-cu12", marker = "(platform_machine == 'x86_64' and sys_platform == 'linux' and extra == 'extra-24-openeo-processes-dask-ml-torch-cuda') or (extra == 'extra-24-openeo-processes-dask-ml-torch-cpu' and extra == 'extra-24-openeo-processes-dask-ml-torch-cuda')" },
+    { name = "nvidia-cusparselt-cu12", marker = "(platform_machine == 'x86_64' and sys_platform == 'linux' and extra == 'extra-24-openeo-processes-dask-ml-torch-cuda') or (extra == 'extra-24-openeo-processes-dask-ml-torch-cpu' and extra == 'extra-24-openeo-processes-dask-ml-torch-cuda')" },
+    { name = "nvidia-nccl-cu12", marker = "(platform_machine == 'x86_64' and sys_platform == 'linux' and extra == 'extra-24-openeo-processes-dask-ml-torch-cuda') or (extra == 'extra-24-openeo-processes-dask-ml-torch-cpu' and extra == 'extra-24-openeo-processes-dask-ml-torch-cuda')" },
+    { name = "nvidia-nvjitlink-cu12", marker = "(platform_machine == 'x86_64' and sys_platform == 'linux' and extra == 'extra-24-openeo-processes-dask-ml-torch-cuda') or (extra == 'extra-24-openeo-processes-dask-ml-torch-cpu' and extra == 'extra-24-openeo-processes-dask-ml-torch-cuda')" },
+    { name = "nvidia-nvshmem-cu12", marker = "(platform_machine == 'x86_64' and sys_platform == 'linux' and extra == 'extra-24-openeo-processes-dask-ml-torch-cuda') or (extra == 'extra-24-openeo-processes-dask-ml-torch-cpu' and extra == 'extra-24-openeo-processes-dask-ml-torch-cuda')" },
+    { name = "nvidia-nvtx-cu12", marker = "(platform_machine == 'x86_64' and sys_platform == 'linux' and extra == 'extra-24-openeo-processes-dask-ml-torch-cuda') or (extra == 'extra-24-openeo-processes-dask-ml-torch-cpu' and extra == 'extra-24-openeo-processes-dask-ml-torch-cuda')" },
     { name = "setuptools", marker = "extra == 'extra-24-openeo-processes-dask-ml-torch-cuda'" },
     { name = "sympy", marker = "extra == 'extra-24-openeo-processes-dask-ml-torch-cuda'" },
-    { name = "triton", marker = "(platform_machine == 'x86_64' and sys_platform == 'linux' and extra == 'extra-24-openeo-processes-dask-ml-torch-cuda') or (platform_machine != 'x86_64' and extra == 'extra-24-openeo-processes-dask-ml-torch-cpu' and extra == 'extra-24-openeo-processes-dask-ml-torch-cuda') or (sys_platform != 'linux' and extra == 'extra-24-openeo-processes-dask-ml-torch-cpu' and extra == 'extra-24-openeo-processes-dask-ml-torch-cuda')" },
+    { name = "triton", marker = "(platform_machine == 'x86_64' and sys_platform == 'linux' and extra == 'extra-24-openeo-processes-dask-ml-torch-cuda') or (extra == 'extra-24-openeo-processes-dask-ml-torch-cpu' and extra == 'extra-24-openeo-processes-dask-ml-torch-cuda')" },
     { name = "typing-extensions", marker = "extra == 'extra-24-openeo-processes-dask-ml-torch-cuda'" },
 ]
 wheels = [
@@ -4638,7 +4638,7 @@ name = "tqdm"
 version = "4.70.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "colorama", marker = "sys_platform == 'win32' or (extra == 'extra-24-openeo-processes-dask-ml-torch-cpu' and extra == 'extra-24-openeo-processes-dask-ml-torch-cuda')" },
+    { name = "colorama", marker = "sys_platform == 'win32'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/0d/ea/b2a5bd54b28a324dae8211928b2d730b6547500342c7e6c6dea08bd0a485/tqdm-4.70.1.tar.gz", hash = "sha256:cefd0eca11b2a37a3aee776544d4f4ae913f02688135b5556b8788dfa474afc4", size = 171846, upload-time = "2026-09-11T07:25:16.601Z" }
 wheels = [
