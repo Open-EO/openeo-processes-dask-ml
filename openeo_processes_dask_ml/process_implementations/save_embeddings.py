@@ -40,7 +40,7 @@ def _get_stac_item_template(_id: str) -> dict:
     d = {
         "stac_version": "1.1.0",
         "stac_extensions": [
-            "https://stac-extensions.github.io/embeddings/v0.0.1/schema.json"
+            "https://stac-extensions.github.io/embeddings/v1.0.0/schema.json"
         ],
         "type": "Feature",
         "id": _id,
@@ -57,7 +57,6 @@ def _get_stac_item_template(_id: str) -> dict:
             "description": "EO embeddings produced using openeo-processes-dask-ml",
             "emb:type": None,  # will be set later
             "emb:dimensions": None,  # will be set later
-            "emb:chip_layout": {"layout_type": None},
             "data_type": None,  # will be set later
         },
         "assets": {
@@ -65,7 +64,7 @@ def _get_stac_item_template(_id: str) -> dict:
                 "href": None,
                 "title": "embeddings",
                 "type": None,
-                "roles": ["embedding"],
+                "roles": ["embeddings"],
             }
         },
     }
@@ -111,8 +110,8 @@ def _set_stac_time_metadata(stac_metadata: dict, datacube: xr.DataArray):
         if len(datacube.coords[time_dim]) > 1:
             tmin = min(datacube.coords[time_dim].data)
             tmax = max(datacube.coords[time_dim].data)
-            stac_metadata["properties"]["start_datetime"] = str(tmin)
-            stac_metadata["properties"]["end_datetime"] = str(tmax)
+            stac_metadata["properties"]["start_datetime"] = str(tmin) + "Z"
+            stac_metadata["properties"]["end_datetime"] = str(tmax) + "Z"
             del stac_metadata["properties"]["datetime"]
         else:
             t = datacube.coords[time_dim].data[0]
@@ -130,27 +129,39 @@ def _set_stac_embedding_metadata(stac_metadata: dict, datacube: xr.DataArray):
     if emb_type is None:
         patch_dim_options = ["patch", "patch_x", "patch_y"]
         if any(x in patch_dim_options for x in datacube.dims):
-            emb_type = "patch"
+            emb_type = "chip"
+            if all(x in datacube.dims for x in ("patch_x", "patch_y")):
+                emb_shape = [
+                    datacube.sizes["patch_x"],
+                    datacube.sizes["patch_y"],
+                    datacube.sizes[emb_dim],
+                ]
+            elif "patch" in datacube.dims:
+                emb_shape = [
+                    datacube.sizes["patch"],
+                    datacube.sizes[emb_dim],
+                ]
+            else:
+                logger.warning("Cannot reliably determine embedding shape")
+                emb_shape = [datacube.sizes[emb_dim]]
 
         elif dim_utils.is_vector_datacube(datacube):
             emb_type = "chip"
+            emb_shape = [datacube.sizes[emb_dim]]
 
         elif dim_utils.is_raster_datacube(datacube):
             # TODO: distinguish between chip and pixel embs
             emb_type = "chip"
+            emb_shape = [datacube.sizes[emb_dim]]
 
         else:
             emb_type = "UNKNOWN"
-            logger.warning("Cannot reliably determine embedding type")
+            logger.warning("Cannot reliably determine embedding type and shape")
+            emb_shape = [datacube.sizes[emb_dim]]
 
-    stac_metadata["properties"]["emb:type"] = emb_type
-    stac_metadata["properties"]["emb:dimensions"] = len(datacube.coords[emb_dim].data)
+        stac_metadata["properties"]["emb:type"] = emb_type
+        stac_metadata["properties"]["emb:dimensions"] = emb_shape
     stac_metadata["properties"]["data_type"] = str(datacube.dtype)
-
-
-def _set_stac_embedding_metadata_raster(stac_metadata: dict, datacube: xr.DataArray):
-    _set_stac_embedding_metadata(stac_metadata, datacube)
-    stac_metadata["properties"]["emb:chip_layout"]["layout_type"] = "regular_grid"
 
 
 def _set_stac_embedding_asset_metadata_raster(
@@ -166,7 +177,7 @@ def _update_stac_metadata_raster_cube(
 ):
     _set_stac_spatial_metadata_raster(stac_metadata, datacube)
     _set_stac_time_metadata(stac_metadata, datacube)
-    _set_stac_embedding_metadata_raster(stac_metadata, datacube)
+    _set_stac_embedding_metadata(stac_metadata, datacube)
 
 
 def _set_stac_spatial_metadata_vector(stac_metadata: dict, datacube: xr.DataArray):
@@ -180,15 +191,10 @@ def _set_stac_spatial_metadata_vector(stac_metadata: dict, datacube: xr.DataArra
     _set_stac_spatial_metadata(stac_metadata, bbox)
 
 
-def _set_stac_embedding_metadata_vector(stac_metadata: dict, datacube: xr.DataArray):
-    _set_stac_embedding_metadata(stac_metadata, datacube)
-    stac_metadata["properties"]["emb:chip_layout"]["layout_type"] = "variable_grid"
-
-
 def _update_stac_metadata_vector_cube(stac_metadata: dict, datacube: xr.DataArray):
     _set_stac_spatial_metadata_vector(stac_metadata, datacube)
     _set_stac_time_metadata(stac_metadata, datacube)
-    _set_stac_embedding_metadata_vector(stac_metadata, datacube)
+    _set_stac_embedding_metadata(stac_metadata, datacube)
     return stac_metadata
 
 
