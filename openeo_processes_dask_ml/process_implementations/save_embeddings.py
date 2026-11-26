@@ -8,6 +8,7 @@ from uuid import uuid4
 import dask
 import geopandas as gpd
 import numpy as np
+import numpy.typing as npt
 import pandas as pd
 import pyarrow as pa
 import pyarrow.parquet as pq
@@ -39,7 +40,7 @@ def _get_stac_item_template(_id: str) -> dict:
     d = {
         "stac_version": "1.1.0",
         "stac_extensions": [
-            "https://stac-extensions.github.io/embeddings/v0.0.1/schema.json"
+            "https://stac-extensions.github.io/embeddings/v1.0.0/schema.json"
         ],
         "type": "Feature",
         "id": _id,
@@ -56,7 +57,6 @@ def _get_stac_item_template(_id: str) -> dict:
             "description": "EO embeddings produced using openeo-processes-dask-ml",
             "emb:type": None,  # will be set later
             "emb:dimensions": None,  # will be set later
-            "emb:chip_layout": {"layout_type": None},
             "data_type": None,  # will be set later
         },
         "assets": {
@@ -64,7 +64,7 @@ def _get_stac_item_template(_id: str) -> dict:
                 "href": None,
                 "title": "embeddings",
                 "type": None,
-                "roles": ["embedding"],
+                "roles": ["embeddings"],
             }
         },
     }
@@ -110,8 +110,8 @@ def _set_stac_time_metadata(stac_metadata: dict, datacube: xr.DataArray):
         if len(datacube.coords[time_dim]) > 1:
             tmin = min(datacube.coords[time_dim].data)
             tmax = max(datacube.coords[time_dim].data)
-            stac_metadata["properties"]["start_datetime"] = str(tmin)
-            stac_metadata["properties"]["end_datetime"] = str(tmax)
+            stac_metadata["properties"]["start_datetime"] = str(tmin) + "Z"
+            stac_metadata["properties"]["end_datetime"] = str(tmax) + "Z"
             del stac_metadata["properties"]["datetime"]
         else:
             t = datacube.coords[time_dim].data[0]
@@ -129,27 +129,39 @@ def _set_stac_embedding_metadata(stac_metadata: dict, datacube: xr.DataArray):
     if emb_type is None:
         patch_dim_options = ["patch", "patch_x", "patch_y"]
         if any(x in patch_dim_options for x in datacube.dims):
-            emb_type = "patch"
+            emb_type = "chip"
+            if all(x in datacube.dims for x in ("patch_x", "patch_y")):
+                emb_shape = [
+                    datacube.sizes["patch_x"],
+                    datacube.sizes["patch_y"],
+                    datacube.sizes[emb_dim],
+                ]
+            elif "patch" in datacube.dims:
+                emb_shape = [
+                    datacube.sizes["patch"],
+                    datacube.sizes[emb_dim],
+                ]
+            else:
+                logger.warning("Cannot reliably determine embedding shape")
+                emb_shape = [datacube.sizes[emb_dim]]
 
         elif dim_utils.is_vector_datacube(datacube):
             emb_type = "chip"
+            emb_shape = [datacube.sizes[emb_dim]]
 
         elif dim_utils.is_raster_datacube(datacube):
             # TODO: distinguish between chip and pixel embs
             emb_type = "chip"
+            emb_shape = [datacube.sizes[emb_dim]]
 
         else:
             emb_type = "UNKNOWN"
-            logger.warning("Cannot reliably determine embedding type")
+            logger.warning("Cannot reliably determine embedding type and shape")
+            emb_shape = [datacube.sizes[emb_dim]]
 
-    stac_metadata["properties"]["emb:type"] = emb_type
-    stac_metadata["properties"]["emb:dimensions"] = len(datacube.coords[emb_dim].data)
+        stac_metadata["properties"]["emb:type"] = emb_type
+        stac_metadata["properties"]["emb:dimensions"] = emb_shape
     stac_metadata["properties"]["data_type"] = str(datacube.dtype)
-
-
-def _set_stac_embedding_metadata_raster(stac_metadata: dict, datacube: xr.DataArray):
-    _set_stac_embedding_metadata(stac_metadata, datacube)
-    stac_metadata["properties"]["emb:chip_layout"]["layout_type"] = "regular_grid"
 
 
 def _set_stac_embedding_asset_metadata_raster(
@@ -165,7 +177,7 @@ def _update_stac_metadata_raster_cube(
 ):
     _set_stac_spatial_metadata_raster(stac_metadata, datacube)
     _set_stac_time_metadata(stac_metadata, datacube)
-    _set_stac_embedding_metadata_raster(stac_metadata, datacube)
+    _set_stac_embedding_metadata(stac_metadata, datacube)
 
 
 def _set_stac_spatial_metadata_vector(stac_metadata: dict, datacube: xr.DataArray):
@@ -179,15 +191,10 @@ def _set_stac_spatial_metadata_vector(stac_metadata: dict, datacube: xr.DataArra
     _set_stac_spatial_metadata(stac_metadata, bbox)
 
 
-def _set_stac_embedding_metadata_vector(stac_metadata: dict, datacube: xr.DataArray):
-    _set_stac_embedding_metadata(stac_metadata, datacube)
-    stac_metadata["properties"]["emb:chip_layout"]["layout_type"] = "variable_grid"
-
-
 def _update_stac_metadata_vector_cube(stac_metadata: dict, datacube: xr.DataArray):
     _set_stac_spatial_metadata_vector(stac_metadata, datacube)
     _set_stac_time_metadata(stac_metadata, datacube)
-    _set_stac_embedding_metadata_vector(stac_metadata, datacube)
+    _set_stac_embedding_metadata(stac_metadata, datacube)
     return stac_metadata
 
 
@@ -252,20 +259,55 @@ def _geo_metadata(geoms: np.ndarray, crs: Any, column: str = "geometry") -> dict
     return {"version": "1.1.0", "primary_column": column, "columns": {column: col}}
 
 
+def _build_emb_column_schema(
+    embedding_shape: tuple[int, ...], value_type: pa.DataType, column_name: str
+) -> pa.Field:
+    dtype: pa.DataType = value_type
+    for dim in reversed(embedding_shape):
+        dtype = pa.list_(dtype, dim)
+    return pa.field(column_name, dtype)
+
+
 def _build_schema(
-    columns: list[str], value_type: pa.DataType, n_emb: int, geo_meta: dict
+    columns: list[str],
+    value_type: pa.DataType,
+    embedding_shape: tuple[int, ...],
+    geo_meta: dict,
 ) -> pa.Schema:
     fields = [pa.field("geometry", pa.binary())]
-    fields += [pa.field(c, pa.list_(value_type, n_emb)) for c in columns]
-    # NOTE: no b"pandas" key -> nothing to misparse on read
+    fields += [
+        _build_emb_column_schema(embedding_shape, value_type, c) for c in columns
+    ]
     return pa.schema(fields, metadata={b"geo": json.dumps(geo_meta).encode()})
 
 
-def _fsl(block: np.ndarray) -> pa.FixedSizeListArray:
-    """(n, k) ndarray -> FixedSizeListArray, no copy of the values."""
-    block = np.ascontiguousarray(np.asarray(block))
-    n, k = block.shape
-    return pa.FixedSizeListArray.from_arrays(pa.array(block.reshape(-1)), k)
+def _to_fsl(block: npt.ArrayLike) -> pa.FixedSizeListArray:
+    """Convert an (n, k1, k2, ..., km) array into a nested FixedSizeListArray.
+
+    The result has length ``n``, and each element is a fixed-size list of
+    ``k1`` fixed-size lists of ``k2`` ... of ``km`` scalar values, i.e. the type is
+    ``fixed_size_list(fixed_size_list(..., km), ..., k1)``.
+
+    The values are not copied for primitive dtypes when the input is already
+    C-contiguous.
+    """
+    contiguous_block = np.ascontiguousarray(block)
+
+    if contiguous_block.ndim < 2:
+        raise ValueError(
+            f"Expected an array with at least 2 dimensions (n, k1, ...), "
+            f"got shape {contiguous_block.shape}"
+        )
+
+    # Flatten to 1-D (a view, since the array is contiguous) and wrap in Arrow.
+    nested_array = pa.array(contiguous_block.reshape(-1))
+
+    # Wrap from the innermost dimension outward: km, ..., k2, k1.
+    # The leading dimension n becomes the length of the outermost array.
+    for list_size in reversed(contiguous_block.shape[1:]):
+        nested_array = pa.FixedSizeListArray.from_arrays(nested_array, list_size)
+
+    return nested_array
 
 
 def _blocks_to_table(
@@ -273,7 +315,7 @@ def _blocks_to_table(
 ) -> pa.Table:
     """Runs inside a dask task: geometry chunk + one block per time slice."""
     wkb = shapely.to_wkb(np.asarray(geoms, dtype=object), flavor="iso")
-    arrays = [pa.array(wkb, type=pa.binary())] + [_fsl(b) for b in blocks]
+    arrays = [pa.array(wkb, type=pa.binary())] + [_to_fsl(b) for b in blocks]
     return pa.Table.from_arrays(arrays, schema=schema)
 
 
@@ -292,25 +334,66 @@ def _write_vector_cube_parquet(
     for dim in (geom_dim, emb_dim):
         if dim not in da.dims:
             raise ValueError(f"Missing required dimension {dim!r}; dims={da.dims}")
-    extra = set(da.dims) - {geom_dim, emb_dim, time_dim}
+
+    ordered_patch_emb_dims = {"patch_x", "patch_y"}
+    unordere_patch_emb_dim = "patch"
+
+    extra = set(da.dims) - {
+        geom_dim,
+        emb_dim,
+        time_dim,
+        *ordered_patch_emb_dims,
+        unordere_patch_emb_dim,
+    }
     if extra:
         raise ValueError(f"Unexpected extra dimension(s): {sorted(extra)}")
 
-    has_time = time_dim is not None and time_dim in da.dims  # <- fixed
-    order = (geom_dim, time_dim, emb_dim) if has_time else (geom_dim, emb_dim)
-    da = da.transpose(*order)
+    has_ordered_patch_embs = (
+        True if all([p in da.dims for p in ordered_patch_emb_dims]) else False
+    )
+    has_unordered_patch_embs = True if unordere_patch_emb_dim in da.dims else False
+    has_time = time_dim is not None and time_dim in da.dims
 
-    if len(da.chunks[da.get_axis_num(emb_dim)]) > 1:
-        da = da.chunk({emb_dim: -1})
+    if has_ordered_patch_embs and has_unordered_patch_embs:
+        raise NotImplementedError(
+            f"Unsupported embedding data cube: "
+            f"Cube must contain either {ordered_patch_emb_dims} or "
+            f"{unordere_patch_emb_dim}.\n"
+            f"The given cube contains all three."
+        )
+
+    if has_ordered_patch_embs:  # has patch_x, patch_y and embedding dimensions
+        emb_dims = ("patch_x", "patch_y", emb_dim)
+    elif has_unordered_patch_embs:  # has patch and embedding dimensions
+        emb_dims = (unordere_patch_emb_dim, emb_dim)
+    else:  # only contains "embedding" dimension
+        emb_dims = (emb_dim,)
+
+    order = (time_dim, geom_dim, *emb_dims) if has_time else (geom_dim, *emb_dims)
+    if da.dims != order:
+        da = da.transpose(*order)
+
+    # check if all emb_dims are in the same chunk
+    is_split = any(len(da.chunks[da.get_axis_num(dim)]) > 1 for dim in emb_dims)
+    if is_split:
+        new_chunks = {dim: -1 for dim in emb_dims}
+        da = da.chunk(new_chunks)
 
     geoms = np.asarray(da[geom_dim].values, dtype=object)
     crs = _get_crs(da, geom_dim)
     columns = _column_labels(da, time_dim, time_fmt)
 
+    # shape of embedding
+    # (e,) for normla embs
+    # (p,e) for unordered patch embs
+    # (p_x, p_y, e) for ordered patch embs
+    emb_shape = tuple(da.sizes[dim] for dim in emb_dims)
+
+    # construct pyarrow table schema
     schema = _build_schema(
         columns,
         pa.from_numpy_dtype(da.dtype),
-        da.sizes[emb_dim],
+        emb_shape,
         _geo_metadata(geoms, crs),
     )
 
@@ -322,7 +405,8 @@ def _write_vector_cube_parquet(
     else:
         per_column = [da.data.to_delayed().ravel()]
 
-    sizes = da.chunks[0]
+    geom_axis = da.get_axis_num(geom_dim)
+    sizes = da.chunks[geom_axis]
     offsets = np.cumsum((0,) + tuple(sizes))
 
     # ---- one file per chunk: fully parallel -------------------------------
@@ -367,7 +451,7 @@ def _write_vector_cube_parquet(
     return path
 
 
-def _save_as_parquet(datacube: xr.DataArray, path: Path) -> bool:
+def _save_as_parquet(datacube: xr.DataArray, path: Path):
     geometry_dim = dim_utils.get_geometry_dim_name(datacube)
     emb_dim_name = dim_utils.get_embedding_dim_name(datacube)
 

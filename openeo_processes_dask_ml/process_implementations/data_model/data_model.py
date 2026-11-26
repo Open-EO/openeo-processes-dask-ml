@@ -1,6 +1,7 @@
 import itertools
 import logging
 import os.path
+import shutil
 import subprocess
 import uuid
 from abc import ABC, abstractmethod
@@ -1299,7 +1300,7 @@ class MLModel(ABC):
         out_model_filepath = out_dir / model_filepath.name
 
         # move model file from cache folder to result folder
-        os.rename(model_filepath, out_model_filepath)
+        shutil.move(model_filepath, out_model_filepath)
 
         out_metadata_filepath = out_model_filepath.with_suffix(".json")
 
